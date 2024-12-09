@@ -1,13 +1,10 @@
 import h5py
 import numpy as np
 from typing import List,Dict 
-from dataclasses import dataclass
 import os
 import argparse
-import datetime
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from gamma import gamma
-import time
 #import matplotlib.pyplot as plt
 import pickle 
 import pandas as pd
@@ -94,6 +91,7 @@ def contract_ops_matrix(
         peram_strange = pd.read_pickle(pick_strange)
         print(peram.shape,peram_strange.shape)
     else:
+        # perams dont have momentum projection
         # peram_file = None
         peram_filename = f"peram_{num_vecs}_cfg{cfg_id}.h5"
         for file in os.listdir(peram_dir):
@@ -103,8 +101,6 @@ def contract_ops_matrix(
         peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
     nop = len(op_name)
 
-    # perams dont have momentum projection
-
     # Load perambulator and meson elemental
     meson_filename = f"meson-{num_vecs}_cfg{cfg_id}.h5"
     for file in os.listdir(meson_dir):
@@ -112,8 +108,8 @@ def contract_ops_matrix(
             meson_file = os.path.join(meson_dir, file)
             break
 
-    meson = np.zeros((nop, Lt), dtype=np.cdouble)  # Reset for each tsrc
-    # different backward quark propagator allows for different quark flavors eg. strange,charm 
+    meson = np.zeros((nop, Lt), dtype=np.cdouble)
+    # different backward perambulator allows for different quark flavors eg. strange,charm 
     for i, op in enumerate(op_name):
             operator = op_map.get(op)
             if operator.strange != 0: 
@@ -259,32 +255,33 @@ def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{num_vecs}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
     op_map = load_op_map(channel)
-    timestr = time.strftime("%Y%m%d-%H")
+    # timestr = time.strftime("%Y%m%d-%H")
     h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_task{task_id}.h5'
     h5_output_path = os.path.join(h5_dir,h5_output_file)
     with h5py.File(h5_output_file, "w") as h5f:
-        h5_group = h5f.create_group(channel)
-        for cfg_id in cfg_ids:
-            try:
-                two_pt_matrix = contract_ops_matrix(
-                pickle=False,
-                h5_group=h5_group,
-                h5_dir=h5_dir,
-                channel='a1_mp',
-                cfg_id=cfg_id,
-                num_vecs=num_vecs,
-                num_tsrcs=num_tsrcs,
-                peram_dir=peram_dir,
-                peram_strange_dir=peram_strange_dir,
-                meson_dir=meson_dir,
-                op_map=op_map,
-                op_name=list(op_map.keys()),
-                Lt = Lt,
-            )
-                if not two_pt_matrix:
-                    print(f"Skipping configuration {cfg_id} file is missing")
-            except FileNotFoundError as e:
-                print(e)
+        for op in op_map:
+            h5_group = h5f.create_group(op)
+            for cfg_id in cfg_ids:
+                try:
+                    two_pt_matrix = contract_ops_matrix(
+                    pickle=False,
+                    h5_group=h5_group,
+                    h5_dir=h5_dir,
+                    channel=str(channel),
+                    cfg_id=cfg_id,
+                    num_vecs=num_vecs,
+                    num_tsrcs=num_tsrcs,
+                    peram_dir=peram_dir,
+                    peram_strange_dir=peram_strange_dir,
+                    meson_dir=meson_dir,
+                    op_map=op_map,
+                    op_name=list(op_map.keys()),
+                    Lt = Lt,
+                )
+                    if not two_pt_matrix:
+                        print(f"Skipping configuration {cfg_id} file is missing")
+                except FileNotFoundError as e:
+                    print(e)
         print(f"All cfgs processed & saved to {h5_output_file}.")
         
 if __name__ == '__main__':
