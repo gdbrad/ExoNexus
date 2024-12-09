@@ -56,6 +56,7 @@ def check_files(num_vecs,cfg_id,peram_dir,peram_strange_dir,meson_dir):
 
 def contract_ops_matrix(
         h5_dir: str,
+        h5_group:str,
         pickle: bool, # use pickled h5 for ease of testing 
         channel: str, # eg. isovector_pp or isovector_mm 
         cfg_id, # for testing single cfg
@@ -100,11 +101,6 @@ def contract_ops_matrix(
                 peram_file = os.path.join(peram_dir, file)
                 break
         peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
-
-
-    timestr = time.strftime("%Y%m%d-%H")
-    h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_{timestr}.h5'
-    h5_output_path = os.path.join(h5_dir,h5_output_file)
     nop = len(op_name)
 
     # perams dont have momentum projection
@@ -233,16 +229,19 @@ def contract_ops_matrix(
             # if os.path.exists(h5_output_file):
             #     os.remove(h5_output_file)
             #     print('removed previous h5 file')
-        with h5py.File(h5_output_path, "a") as h5f:
-            tsrc_group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
-            tsrc_group = h5f.create_group(tsrc_group_name)
-            # Loop over operators and save their respective datasets
-            for i, op in enumerate(op_name):
-                operator_dataset_name = f'{op}'
-                if operator_dataset_name in tsrc_group:
-                    del tsrc_group[operator_dataset_name]  # Delete existing dataset to avoid errors
-                tsrc_group.create_dataset(operator_dataset_name, data=meson[i, :])
-        # print(f'pion for tsrc {tsrc}:', meson)
+        h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
+        print(f"Cfg {cfg_id} processed successfully.")
+        return True
+        # with h5py.File(h5_output_path, "w") as h5f:
+        #     tsrc_group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
+        #     tsrc_group = h5f.create_group(tsrc_group_name)
+        #     # Loop over operators and save their respective datasets
+        #     for i, op in enumerate(op_name):
+        #         operator_dataset_name = f'{op}'
+        #         if operator_dataset_name in tsrc_group:
+        #             del tsrc_group[operator_dataset_name]  # Delete existing dataset to avoid errors
+        #         tsrc_group.create_dataset(operator_dataset_name, data=meson[i, :])
+        # # print(f'pion for tsrc {tsrc}:', meson)
 
 def load_op_map(channel:str):
     try:
@@ -260,27 +259,34 @@ def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{num_vecs}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
     op_map = load_op_map(channel)
-    for cfg_id in cfg_ids:
-        try:
-            two_pt_matrix = contract_ops_matrix(
-            pickle=False,
-            h5_dir=h5_dir,
-            channel='a1_mp',
-            cfg_id=cfg_id,
-            num_vecs=num_vecs,
-            num_tsrcs=num_tsrcs,
-            peram_dir=peram_dir,
-            peram_strange_dir=peram_strange_dir,
-            meson_dir=meson_dir,
-            op_map=op_map,
-            op_name=list(op_map.keys()),
-            Lt = Lt,
-        )
-            if not two_pt_matrix:
-                print(f"Skipping configuration {cfg_id} file is missing")
-        except FileNotFoundError as e:
-            print(e)
-
+    timestr = time.strftime("%Y%m%d-%H")
+    h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_{timestr}.h5'
+    h5_output_path = os.path.join(h5_dir,h5_output_file)
+    with h5py.File(h5_output_file, "w") as h5f:
+        h5_group = h5f.create_group(channel)
+        for cfg_id in cfg_ids:
+            try:
+                two_pt_matrix = contract_ops_matrix(
+                pickle=False,
+                h5_group=h5_group,
+                h5_dir=h5_dir,
+                channel='a1_mp',
+                cfg_id=cfg_id,
+                num_vecs=num_vecs,
+                num_tsrcs=num_tsrcs,
+                peram_dir=peram_dir,
+                peram_strange_dir=peram_strange_dir,
+                meson_dir=meson_dir,
+                op_map=op_map,
+                op_name=list(op_map.keys()),
+                Lt = Lt,
+            )
+                if not two_pt_matrix:
+                    print(f"Skipping configuration {cfg_id} file is missing")
+            except FileNotFoundError as e:
+                print(e)
+        print(f"All cfgs processed & saved to {h5_output_file}.")
+        
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process peram and meson files for multiple configurations.")
     parser.add_argument('--cfg_ids', type=str, required=True, help="List of configuration IDs to process")
