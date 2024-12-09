@@ -234,7 +234,7 @@ def contract_ops_matrix(
             #     os.remove(h5_output_file)
             #     print('removed previous h5 file')
         with h5py.File(h5_output_path, "a") as h5f:
-            tsrc_group_name = f'tsrc_{tsrc}/cfg_1001'
+            tsrc_group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
             tsrc_group = h5f.create_group(tsrc_group_name)
             # Loop over operators and save their respective datasets
             for i, op in enumerate(op_name):
