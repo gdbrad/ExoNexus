@@ -246,7 +246,7 @@ def load_op_map(channel:str):
     except AttributeError:
         raise AttributeError(f"'{channel}' not found in operator_factory")
 
-def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,op_map,task_id,show_plot=False):
+def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     h5_path = os.path.abspath('/p/scratch/exotichadrons/exolaunch')
     Lt = 96  
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{num_vecs}', f'tsrc-{num_tsrcs}')
@@ -281,7 +281,7 @@ if __name__ == '__main__':
     parser.add_argument('--h5_dir', type=str, required=True, help="h5 output path")
     parser.add_argument('--nvec', type=int, required=True, help="Number of eigenvectors")
     parser.add_argument('--ntsrc', type=int, required=True, help="Number of source time slices")
-    parser.add_argument('--plot', action='store_true', help="Show plot of pion distribution")
+    # parser.add_argument('--plot', action='store_true', help="Show plot of pion distribution")
     parser.add_argument('--task', type=int, required=True, help="SLURM array task ID or unique identifier for this run")
 
 
@@ -291,4 +291,4 @@ if __name__ == '__main__':
     # else:
     cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
-    main(cfg_ids=cfg_ids, channel=args.channel,h5_dir=args.h5_dir,num_vecs=args.nvec, num_tsrcs=args.ntsrc, show_plot=args.plot,task_id=args.task)
+    main(cfg_ids=cfg_ids, channel=args.channel,h5_dir=args.h5_dir,num_vecs=args.nvec, num_tsrcs=args.ntsrc, task_id=args.task)
