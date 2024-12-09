@@ -74,9 +74,10 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
 
     # print(f"Caching peram data to {cache_file}")
     # joblib.dump(peram, cache_file)
-    print("pickling file")
-    with open('peram_light_1001.pkl', 'wb') as f:
-        pickle.dump(peram, f)
+    # if pickle:
+    #     print("pickling file")
+    #     with open('peram_light_1001.pkl', 'wb') as f:
+    #         pickle.dump(peram, f)
 
     return peram
 
@@ -105,7 +106,7 @@ def load_elemental(file: pathlib.Path | str, max_t: int, n_vecs: int, mom: str |
         no specific key is given for momentum or displacement, otherwise reduntant axes are dropped
     """
 
-    cache_file = f"/home/grant/exotraction/{os.path.basename(file)}_cache_.joblib"  # Cache file name based on input parameters
+    # cache_file = f"/home/grant/exotraction/{os.path.basename(file)}_cache_.joblib"  # Cache file name based on input parameters
 
     # # Check if the cache file exists
     # if pathlib.Path(cache_file).is_file():
@@ -150,9 +151,9 @@ def load_elemental(file: pathlib.Path | str, max_t: int, n_vecs: int, mom: str |
             
     # print(f"Caching meson data to {cache_file}")
     # joblib.dump(meson, cache_file)
-    print("pickling file")
-    with open('meson_1001.pkl', 'wb') as f:
-        pickle.dump(meson, f)
+    # print("pickling file")
+    # with open('meson_1001.pkl', 'wb') as f:
+    #     pickle.dump(meson, f)
 
     return meson
 
@@ -172,9 +173,6 @@ def reverse_perambulator_time(peram: np.ndarray) -> np.ndarray:
     """
     print("Computing the time-reversed perambulator")
 
-    # num_tsrcs = peram.shape[0]
-    # max_t = peram.shape[1]
-    # n_vecs = peram.shape[-1]
     num_tsrcs, max_t, _, _, n_vecs, _ = peram.shape
     peram_reverse = np.zeros_like(peram)
     # Initialize the reverse perambulator array
@@ -198,5 +196,4 @@ def reverse_perambulator_time(peram: np.ndarray) -> np.ndarray:
         gamma[5], peramb_reverse, gamma[5],
         optimize='optimal'
     )
-
     return peramb_reverse
