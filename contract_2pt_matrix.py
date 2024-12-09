@@ -86,8 +86,21 @@ def contract_ops_matrix(
     Once the τ(perambulators) have been computed and stored, the correlation of any source and sink operators can be computed a posteriori. this is determined by the indicated PC value -> dim of lattice irep 
     '''
     # load pickle files 
-    pick_light = 'peram_light_1001.pkl'
-    pick_strange = 'peram_strange_1001.pkl'
+    if pickle:
+        pick_light = 'peram_light_1001.pkl'
+        pick_strange = 'peram_strange_1001.pkl'
+        peram = pd.read_pickle(pick_light)
+        peram_strange = pd.read_pickle(pick_strange)
+        print(peram.shape,peram_strange.shape)
+    else:
+        # peram_file = None
+        peram_filename = f"peram_{num_vecs}_cfg{cfg_id}.h5"
+        for file in os.listdir(peram_dir):
+            if file == peram_filename:
+                peram_file = os.path.join(peram_dir, file)
+                break
+        peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
+
 
     timestr = time.strftime("%Y%m%d-%H")
     h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_{timestr}.h5'
@@ -95,12 +108,6 @@ def contract_ops_matrix(
     nop = len(op_name)
 
     # perams dont have momentum projection
-    if pickle: 
-        peram = pd.read_pickle(pick_light)
-        peram_strange = pd.read_pickle(pick_strange)
-        print(peram.shape,peram_strange.shape)
-    else:
-        peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
 
     # Load perambulator and meson elemental
     meson_filename = f"meson-{num_vecs}_cfg{cfg_id}.h5"
