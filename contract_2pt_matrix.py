@@ -263,7 +263,7 @@ def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     for cfg_id in cfg_ids:
         try:
             two_pt_matrix = contract_ops_matrix(
-            pickle=True,
+            pickle=False,
             h5_dir=h5_dir,
             channel='a1_mp',
             cfg_id=cfg_id,
