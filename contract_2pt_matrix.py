@@ -8,7 +8,7 @@ import datetime
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from gamma import gamma
 import time
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import pickle 
 import pandas as pd
 import operator_factory
