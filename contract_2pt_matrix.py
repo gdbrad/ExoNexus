@@ -291,4 +291,4 @@ if __name__ == '__main__':
     # else:
     cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
-    main(cfg_ids=cfg_ids, channel=args.channel,num_vecs=args.nvec, num_tsrcs=args.ntsrc, show_plot=args.plot,task_id=args.task)
+    main(cfg_ids=cfg_ids, channel=args.channel,h5_dir=args.h5_dir,num_vecs=args.nvec, num_tsrcs=args.ntsrc, show_plot=args.plot,task_id=args.task)
