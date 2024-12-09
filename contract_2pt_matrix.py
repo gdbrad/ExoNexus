@@ -260,7 +260,7 @@ def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
     op_map = load_op_map(channel)
     timestr = time.strftime("%Y%m%d-%H")
-    h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_{timestr}.h5'
+    h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_task{task_id}.h5'
     h5_output_path = os.path.join(h5_dir,h5_output_file)
     with h5py.File(h5_output_file, "w") as h5f:
         h5_group = h5f.create_group(channel)
