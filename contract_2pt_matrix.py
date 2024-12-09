@@ -11,6 +11,7 @@ import time
 import matplotlib.pyplot as plt
 import pickle 
 import pandas as pd
+import operator_factory
 
 gamma_i = [gamma[1],gamma[2],gamma[3],gamma[4]]
 
@@ -54,6 +55,7 @@ def check_files(num_vecs,cfg_id,peram_dir,peram_strange_dir,meson_dir):
     return peram_file,peram_strange_file,meson_file
 
 def contract_ops_matrix(
+        h5_dir: str,
         pickle: bool, # use pickled h5 for ease of testing 
         channel: str, # eg. isovector_pp or isovector_mm 
         cfg_id, # for testing single cfg
@@ -67,6 +69,20 @@ def contract_ops_matrix(
         Lt:int, # temporal extent of lattice 
         show_plot=False):
     '''
+    C(t, 0) = Tr[phi(t)tau(t,0)phi(0)tau(0,t)]
+    Calculate the two-point correlation function for a given set of operators; If given a list of operators, a correlation matrix will be built to be fed into GEVP solver. gauge covariant spatial derivatives are combined with a gamma matrix within a fermion bilinear. 
+
+    Parameters:
+    - op_map/op_name: List of OperatorFactory objects defining the interpolating fields.
+    - elemental: Meson elemental object .
+    - perambulator: perambulator (quark propagator) data.
+    - timeslices: Iterable of time slices at which the correlation function is to be evaluated.
+    - Lt: Temporal extent of the lattice.
+    - numvecs: Number of eigenvectors used in the calculation (will be <<< distillation basis)
+    
+    Returns:
+    - A NumPy array of shape (Nop, Lt) containing the two-point correlation function
+      values for each operator and timeslice.
     Once the τ(perambulators) have been computed and stored, the correlation of any source and sink operators can be computed a posteriori. this is determined by the indicated PC value -> dim of lattice irep 
     '''
     # load pickle files 
@@ -75,6 +91,7 @@ def contract_ops_matrix(
 
     timestr = time.strftime("%Y%m%d-%H")
     h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_{timestr}.h5'
+    h5_output_path = os.path.join(h5_dir,h5_output_file)
     nop = len(op_name)
 
     # perams dont have momentum projection
@@ -91,12 +108,9 @@ def contract_ops_matrix(
         if file == meson_filename:
             meson_file = os.path.join(meson_dir, file)
             break
-    
 
     meson = np.zeros((nop, Lt), dtype=np.cdouble)  # Reset for each tsrc
-    peram_back = reverse_perambulator_time(peram)
     # different backward quark propagator allows for different quark flavors eg. strange,charm 
-
     for i, op in enumerate(op_name):
             operator = op_map.get(op)
             if operator.strange != 0: 
@@ -212,7 +226,7 @@ def contract_ops_matrix(
             # if os.path.exists(h5_output_file):
             #     os.remove(h5_output_file)
             #     print('removed previous h5 file')
-        with h5py.File(h5_output_file, "a") as h5f:
+        with h5py.File(h5_output_path, "a") as h5f:
             tsrc_group_name = f'tsrc_{tsrc}/cfg_1001'
             tsrc_group = h5f.create_group(tsrc_group_name)
             # Loop over operators and save their respective datasets
@@ -220,22 +234,30 @@ def contract_ops_matrix(
                 operator_dataset_name = f'{op}'
                 if operator_dataset_name in tsrc_group:
                     del tsrc_group[operator_dataset_name]  # Delete existing dataset to avoid errors
-                
                 tsrc_group.create_dataset(operator_dataset_name, data=meson[i, :])
         # print(f'pion for tsrc {tsrc}:', meson)
 
+def load_op_map(channel:str):
+    try:
+        op_map = getattr(operator_factory, channel)
+        if not isinstance(op_map, dict):
+            raise TypeError(f"'{channel}' is not a dict")
+        return op_map
+    except AttributeError:
+        raise AttributeError(f"'{channel}' not found in operator_factory")
 
-def main(cfg_ids, channel, num_vecs, num_tsrcs,op_map,task_id,show_plot=False):
+def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,op_map,task_id,show_plot=False):
     h5_path = os.path.abspath('/p/scratch/exotichadrons/exolaunch')
     Lt = 96  
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{num_vecs}', f'tsrc-{num_tsrcs}')
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{num_vecs}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
-
+    op_map = load_op_map(channel)
     for cfg_id in cfg_ids:
         try:
             two_pt_matrix = contract_ops_matrix(
             pickle=True,
+            h5_dir=h5_dir,
             channel='a1_mp',
             cfg_id=cfg_id,
             num_vecs=num_vecs,
@@ -256,9 +278,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process peram and meson files for multiple configurations.")
     parser.add_argument('--cfg_ids', type=str, required=True, help="List of configuration IDs to process")
     parser.add_argument('--channel', type=str, required=True, help="JPC and irrep")
+    parser.add_argument('--h5_dir', type=str, required=True, help="h5 output path")
     parser.add_argument('--nvec', type=int, required=True, help="Number of eigenvectors")
     parser.add_argument('--ntsrc', type=int, required=True, help="Number of source time slices")
-    parser.add_argument('--op_map', type=str, required=True, help="operator dict")
     parser.add_argument('--plot', action='store_true', help="Show plot of pion distribution")
     parser.add_argument('--task', type=int, required=True, help="SLURM array task ID or unique identifier for this run")
 
@@ -269,4 +291,4 @@ if __name__ == '__main__':
     # else:
     cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
-    main(cfg_ids=cfg_ids, channel=args.channel,num_vecs=args.nvec, num_tsrcs=args.ntsrc, op_map=args.op_map,show_plot=args.plot,disp=args.disp,task_id=args.task)
+    main(cfg_ids=cfg_ids, channel=args.channel,num_vecs=args.nvec, num_tsrcs=args.ntsrc, show_plot=args.plot,task_id=args.task)

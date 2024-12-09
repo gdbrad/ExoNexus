@@ -2,36 +2,19 @@ from dataclasses import dataclass
 from gamma import gamma
 import numpy as np 
 
-# def displace(disp,u,F,length,mu):
-#     '''returns sign and coeff'''
-#     deriv_type = str()
-#     mu = displacement_map(disp)
-#     if mu[0]!=mu[1]:
-#         assert deriv_type=='mixed'
-
-
-# def operator_displacement(name:str,
-#                           disp:List[int],
-#                           src:bool,
-#                           snk:bool,
-#                           length=1):
-#     '''O (deriv operator) x gamma construction of a meson operator'''
-#     ins = Insertion[name]
-#     if len(disp)==1:
-#         # length is always = 1
-#         deriv_operator == ins['deriv']
-
-#         displacement(u, F, length, mu) - displacement(u, F, -length, mu)
-
-#         # apply first derivative to the right onto src 
-
-
 mom= 'mom_0_0_0'
 I = np.array([[1, 0],
               [0, 1]])
 IDEN = np.identity(4)
 @dataclass
 class QuantumNum:
+    '''
+    Houses all operator information into mom/disp/gamma structure 
+    gamma: single or list 
+    disp: null vector, 1-tuple, 2-tuple -> displacement three vector; apply covariant derivative operator in a specified spatial direction 
+    LOOK UP CHROMA CONVENTION FOR THIS ^ i think disp_1: disp(1,0,0)
+    mom: List of 3-tuples 
+    '''
     name:str
     had: int    # 1->meson (no parity in op name), 2->baryon (parity is in op name)
     F: str      # Flavor irrep
@@ -44,6 +27,7 @@ class QuantumNum:
     gamma_i: bool # [g1,g2,g3,g4] summed over 
     deriv: str  # covariant derivative eg. g_i
     mom: str 
+
 ''' construct interpolators for 4 J^PC values '''
 # this is test case see charmonium spectrum paper by hadspec 
 #  
