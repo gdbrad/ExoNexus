@@ -108,7 +108,7 @@ def contract_ops_matrix(
             meson_file = os.path.join(meson_dir, file)
             break
 
-    meson = np.zeros((nop, Lt), dtype=np.cdouble)
+    # meson = np.zeros((nop, Lt), dtype=np.cdouble)
     # different backward perambulator allows for different quark flavors eg. strange,charm 
     for i, op in enumerate(op_name):
             operator = op_map.get(op)
@@ -137,6 +137,7 @@ def contract_ops_matrix(
 
     # Process each tsrc, for each time slice, for each cfg 
     for tsrc in range(num_tsrcs):
+        meson = np.zeros((nop, Lt), dtype=np.cdouble)
         for t in range(Lt):
             tau = peram[tsrc, t, :, :, :, :]
             tau_ = peram_back[tsrc, t, :, :, :, :]
@@ -222,12 +223,11 @@ def contract_ops_matrix(
                     D_1 = np.einsum("ijab,jkbc,klcd,lida", gixBi_t, tau, gixBi, tau_, optimize='optimal')
                     meson[i,t] = D_1
         
-            # if os.path.exists(h5_output_file):
-            #     os.remove(h5_output_file)
-            #     print('removed previous h5 file')
+        # write out 2pt corrs for current tsrc in loop
         h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
-        print(f"Cfg {cfg_id} processed successfully.")
-        return True
+    
+    print(f"Cfg {cfg_id} processed successfully for all tsrc.")
+    return True
         # with h5py.File(h5_output_path, "w") as h5f:
         #     tsrc_group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
         #     tsrc_group = h5f.create_group(tsrc_group_name)
