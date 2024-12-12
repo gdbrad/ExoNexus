@@ -224,10 +224,17 @@ def contract_ops_matrix(
                     meson[i,t] = D_1
         
         # write out 2pt corrs for current tsrc in loop
-        h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
-    
+        # Write out only the required operator to HDF5
+        group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
+        if group_name in h5_group:
+            del h5_group[group_name]  # Clear existing data to prevent overwrites
+        h5_group.create_dataset(group_name, data=meson[0, :])  # Save only the first operator
+
     print(f"Cfg {cfg_id} processed successfully for all tsrc.")
-    return True
+    #     h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
+    
+    # print(f"Cfg {cfg_id} processed successfully for all tsrc.")
+    # return True
         # with h5py.File(h5_output_path, "w") as h5f:
         #     tsrc_group_name = f'tsrc_{tsrc}/cfg_{cfg_id}'
         #     tsrc_group = h5f.create_group(tsrc_group_name)
@@ -257,7 +264,7 @@ def main(cfg_ids, channel, h5_dir, num_vecs, num_tsrcs,task_id,show_plot=False):
     op_map = load_op_map(channel)
     # timestr = time.strftime("%Y%m%d-%H")
     h5_output_file = f'{channel}_nvec_{num_vecs}_tsrc_{num_tsrcs}_task{task_id}.h5'
-    h5_output_path = os.path.join(h5_dir,h5_output_file)
+    # h5_output_path = os.path.join(h5_dir,h5_output_file)
     with h5py.File(h5_output_file, "w") as h5f:
         for op in op_map:
             h5_group = h5f.create_group(op)
