@@ -3,7 +3,6 @@ import h5py
 import numpy as np
 import os 
 import tqdm
-import joblib 
 from gamma import gamma
 import pickle
 
@@ -21,7 +20,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
     ----------
     file : str
         The path to the hdf5 file.
-    max_t : int
+    max_t : it
         Temporal extent of the lattice (usually Lt).
     n_vecs : int
         Number of distillation basis vectors.

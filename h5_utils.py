@@ -9,6 +9,26 @@ from typing import Any
 import os
 # import pprint
 
+def move_groups_to_parent(file):
+    with h5.File(file,'a') as f:
+        parent_name = 'a1_mp'
+        if parent_name not in f:
+            parent_grp = f.create_group(parent_name)
+        operator_groups = [
+        'b_1xNABLA_A1',
+        'pion',
+        'pion_2',
+        'rho_2xB_A1',
+        'rhoxB_A1'
+    ]
+        
+        for op_group in operator_groups:
+            if op_group in f:
+                f.move(op_group, f"{parent_name}/{op_group}")
+                print(f"Moved group '{op_group}' to '{parent_name}/{op_group}'.")
+            else:
+                print(f"Group '{op_group}' does not exist, skipping.")
+
 def create_dset(h5f: str, key: str, data: Any, overwrite: bool = False):
     """Creates or overwrites (if requested) dataset in HDF5 file.
 
