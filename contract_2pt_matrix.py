@@ -127,6 +127,7 @@ def contract_B_D(meson_file,nt,nvec,operator, t, add=True):
 
 from operator_factory import QuantumNum
 def correlator_matrix(
+    task_id:int,
     use_pickle: bool,
     operators:List[QuantumNum],
     peram_dir,
@@ -170,7 +171,7 @@ def correlator_matrix(
                 peram_back = reverse_perambulator_time(peram)
 
     meson_matrix = np.zeros((len(operators),len(operators),nt),dtype=np.cdouble)
-    with h5py.File(f"gevp_{channel}_{timestr}.h5", "w") as h5_group:
+    with h5py.File(f"gevp_{channel}_{timestr}_{task_id}.h5", "w") as h5_group:
         for src_idx, (src_name, src_op) in enumerate(operators.items()):  # src_idx is an integer index
             for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):  # 
                 for tsrc in range(ntsrc):
@@ -215,6 +216,7 @@ def correlator_matrix(
 
 def correlator_matrix_debug(
     use_pickle: bool,
+    task_id:int,
     operators: List[QuantumNum],
     peram_dir,
     meson_dir,
@@ -316,31 +318,30 @@ def main(cfg_ids, channel,h5_dir, nvec, ntsrc,task_id,show_plot=False):
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
     h5_output_file = f'{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5'
     # h5_output_path = os.path.join(h5_dir,h5_output_file)
-    with h5py.File(h5_output_file, "w") as h5f:
-        for op in op_map:
-            h5_group = h5f.create_group(op)
-            for cfg_id in cfg_ids:
-                try:
-                    two_pt_matrix = correlator_matrix(
-                    use_pickle=False,
-                    h5_group=h5_group,
-                    # h5_dir=h5_dir,
-                    cfg_id=cfg_id,
-                    nvec=nvec,
-                    ntsrc=ntsrc,
-                    ncfg=200,
-                    peram_dir=peram_dir,
-                    # peram_strange_dir=peram_strange_dir,
-                    meson_dir=meson_dir,
-                    op_map=op_map,
-                    op_name=list(op_map.keys()),
-                    nt = nt,
-                )
-                    if not two_pt_matrix:
-                        print(f"Skipping configuration {cfg_id} file is missing")
-                except FileNotFoundError as e:
-                    print(e)
-        print(f"All cfgs processed & saved to {h5_output_file}.")
+    operators = operator_factory.a1_mp
+
+    for cfg_id in cfg_ids:
+        try:
+            two_pt_matrix = correlator_matrix(
+            use_pickle=False,
+            task_id=task_id,
+            use_pickle=False,
+            operators=operators,
+            channel='a1_mp',
+            cfg_id=cfg_id,
+            nvec=nvec,
+            ntsrc=ntsrc,
+            ncfg=200,
+            peram_dir=peram_dir,
+            meson_dir=meson_dir,
+            nt = nt,
+            debug=False
+        )
+            if not two_pt_matrix:
+                print(f"Skipping configuration {cfg_id} file is missing")
+        except FileNotFoundError as e:
+            print(e)
+    print(f"All cfgs processed & saved to {h5_output_file}.")
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process peram and meson files for multiple configurations.")
@@ -349,14 +350,8 @@ if __name__ == '__main__':
     parser.add_argument('--h5_dir', type=str, required=True, help="h5 output path")
     parser.add_argument('--nvec', type=int, required=True, help="Number of eigenvectors")
     parser.add_argument('--ntsrc', type=int, required=True, help="Number of source time slices")
-    # parser.add_argument('--plot', action='store_true', help="Show plot of pion distribution")
     parser.add_argument('--task', type=int, required=True, help="SLURM array task ID or unique identifier for this run")
-
-
     args = parser.parse_args()
-    # if args.cfg_ids is None:
-    #     cfg_ids = list(range(11, 1992, 10))  # Generate 11, 21, 31, ..., 1991
-    # else:
     cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
     main(cfg_ids=cfg_ids, channel=args.channel,h5_dir=args.h5_dir,nvec=args.nvec, ntsrc=args.ntsrc, task_id=args.task)
