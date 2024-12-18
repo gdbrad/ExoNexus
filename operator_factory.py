@@ -55,10 +55,12 @@ a1_mp = {
 }
 
 strange_a1_m_p = {
-    "kaon_A1": QuantumNum(name="kaon_A1",had=1, F="A1", twoI=1,strange=-1, S=0, P=-1, C=None, gamma=gamma[5],deriv=None,gamma_i=False,mom=mom),
-    "kaon_2_A1": QuantumNum(name="kaon_2_A1",had=1, F="A1", twoI=1, strange=-1,S=1, P=-1, C=None, gamma=gamma[4]@gamma[5],gamma_i=False,deriv=None,mom=mom),
-    "kaon_A1_001": QuantumNum(name="kaon_A1",had=1, F="A1", twoI=1,strange=-1, S=0, P=-1, C=None, gamma=gamma[5],deriv=None,gamma_i=False,mom='mom_0_0_0'),
-    "kaon_2_A1_001": QuantumNum(name="kaon_2_A1",had=1, F="A1", twoI=1, strange=-1,S=1, P=-1, C=None, gamma=gamma[4]@gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_0'),
+    "kaon": QuantumNum(name="kaon",had=1, F="A1", twoI=1,strange=-1, S=0, P=-1, C=None, gamma=gamma[5],deriv=None,gamma_i=False,mom=mom),
+    "kaon_2": QuantumNum(name="kaon_2",had=1, F="A1", twoI=1, strange=-1,S=1, P=-1, C=None, gamma=gamma[4]@gamma[5],gamma_i=False,deriv=None,mom=mom),
+    "b_1xNABLA_A1": QuantumNum(name='b_1xB_A1',had=1, F="A1", strange=-1,twoI=1, S=0, P=-1, C=1, gamma=gamma[4]@gamma[5],gamma_i=True,deriv="nabla",mom=mom),
+    "rhoxB_A1": QuantumNum(name='rhoxB_A1',had=1, F="A1", strange=-1,twoI=1, S=0, P=-1, C=1, gamma=IDEN,gamma_i=True,deriv="B",mom=mom),
+    "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1", strange=-1,twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B",mom=mom),
+   
     
 }
 'a1_pionx_g5_000'
