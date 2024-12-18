@@ -325,7 +325,6 @@ def main(cfg_ids, channel,h5_dir, nvec, ntsrc,task_id,show_plot=False):
             two_pt_matrix = correlator_matrix(
             use_pickle=False,
             task_id=task_id,
-            use_pickle=False,
             operators=operators,
             channel='a1_mp',
             cfg_id=cfg_id,
