@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from gamma import gamma
 import numpy as np 
-from itertools import product 
-from sympy import S
+# from itertools import product 
+# from sympy import S
 
 mom= 'mom_0_0_0'
 I = np.array([[1, 0],
@@ -99,34 +99,34 @@ j_p_m = {
 }
 
 
-class Momenta: 
+# class Momenta: 
 
-    '''
-    Here we define various 3-momenta conventions since angular momentum takes on a different form on the lattice and ceases to be a good quantum number
-    Essentially, the same operator comes out for different relative momenta. In each dict, labeled by the total momentum P^2, all relative momenta satisfying this criteria
-    are generated 
-    '''
+#     '''
+#     Here we define various 3-momenta conventions since angular momentum takes on a different form on the lattice and ceases to be a good quantum number
+#     Essentially, the same operator comes out for different relative momenta. In each dict, labeled by the total momentum P^2, all relative momenta satisfying this criteria
+#     are generated 
+#     '''
 
-def list_from_mom2_max(n):
-    '''generate relative momenta for a given total momenta'''
-    imax = int(np.sqrt(n))
-    mom = []
-    # print('P^2='f"{n}")
-    for it in product(range(-imax, imax + 1), repeat=3):
-        i, j, k = it
-        if i**2 + j**2 + k**2 <= n:
-            if i**2 + j**2 + k**2 == n:
-                mom.append([S(k), S(j), S(i)])
-                #print(f"mom list:({k},{j},{i})")
-    return mom
+# def list_from_mom2_max(n):
+#     '''generate relative momenta for a given total momenta'''
+#     imax = int(np.sqrt(n))
+#     mom = []
+#     # print('P^2='f"{n}")
+#     for it in product(range(-imax, imax + 1), repeat=3):
+#         i, j, k = it
+#         if i**2 + j**2 + k**2 <= n:
+#             if i**2 + j**2 + k**2 == n:
+#                 mom.append([S(k), S(j), S(i)])
+#                 #print(f"mom list:({k},{j},{i})")
+#     return mom
 
-def mom_list_to_dict(mom_list):
-    mom_dict = {k: " ".join(map(str,v)) for k, v in enumerate(mom_list)}
-    return mom_dict
+# def mom_list_to_dict(mom_list):
+#     mom_dict = {k: " ".join(map(str,v)) for k, v in enumerate(mom_list)}
+#     return mom_dict
 
-def mom_list_to_numpy_array(mom_list):
-    '''convert list of momenta to a numpy array'''
-    return np.array([mom_list])
+# def mom_list_to_numpy_array(mom_list):
+#     '''convert list of momenta to a numpy array'''
+#     return np.array([mom_list])
 
 
-print(list_from_mom2_max(n=1))
+# print(list_from_mom2_max(n=1))
