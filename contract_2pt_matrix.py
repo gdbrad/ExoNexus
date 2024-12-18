@@ -199,13 +199,13 @@ def correlator_matrix(
                             print('performing contraction for',(src_name, src_op),(snk_name, snk_op),tsrc,'timeslice',t)
                             
                             # Perform contraction
-                            meson_matrix[src_idx, snk_idx, :, t] = np.einsum(
+                            meson_matrix[src_idx, snk_idx, t] = np.einsum(
                                 "ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize="optimal"
                             )
                         group_name = f"/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
                         if group_name in h5_group:
                             del h5_group[group_name]  # Avoid overwriting existing datasets
-                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx, :, :])
+                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx,:])
 
                         # # Write out 2pt correlators for the current src-snk pair
                         # h5_group = f"/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
@@ -316,7 +316,7 @@ def main(cfg_ids, channel,h5_dir, nvec, ntsrc,task_id,show_plot=False):
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}', f'tsrc-{ntsrc}')
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{nvec}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
-    h5_output_file = f'{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5'
+    h5_output_file = f'gevp_{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5'
     # h5_output_path = os.path.join(h5_dir,h5_output_file)
     operators = operator_factory.a1_mp
 
