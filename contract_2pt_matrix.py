@@ -3,13 +3,16 @@ import numpy as np
 from typing import List,Dict 
 import os
 import argparse
-from ingest_data import load_elemental, load_peram, reverse_perambulator_time
-from gamma import gamma
 #import matplotlib.pyplot as plt
 import pickle 
 import pandas as pd
-import operator_factory
+import time 
 
+from gamma import gamma
+import operator_factory
+from ingest_data import load_elemental, load_peram, reverse_perambulator_time
+
+timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1],gamma[2],gamma[3],gamma[4]]
 
 
@@ -125,6 +128,7 @@ def contract_B_D(meson_file,nt,nvec,operator, t, add=True):
 
 def correlator_matrix(
     use_pickle: bool,
+    channel: str,
     h5_group:str,
     peram_dir,
     meson_dir,
@@ -144,7 +148,6 @@ def correlator_matrix(
         peram_strange = pd.read_pickle(pick_strange)
         print(peram.shape,peram_strange.shape)
     else:
-
         peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
         for file in os.listdir(peram_dir):
             if file == peram_filename:
@@ -152,13 +155,13 @@ def correlator_matrix(
                 break
         peram = load_peram(peram_file, nt, nvec, ntsrc)
 
+    # set meson elemental h5 path 
     meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
     for file in os.listdir(meson_dir):
         if file == meson_filename:
             meson_file = os.path.join(meson_dir, file)
             break
 
-    # meson = np.zeros((nop, Lt), dtype=np.cdouble)
     # different backward perambulator allows for different quark flavors eg. strange,charm 
     for i, op in enumerate(op_name):
             operator = op_map.get(op)
@@ -168,15 +171,10 @@ def correlator_matrix(
                 peram_back = reverse_perambulator_time(peram)
 
     meson_matrix = np.zeros((len(op_name),len(op_name),ncfg,nt),dtype=np.cdouble)
-    with h5py.File("gevp_a1mp.h5", "w") as h5_group:
-        for tsrc in range(ntsrc):
-            # for i, op in enumerate(op_name):
-            #     operator = op_map.get(op)
-            for src_idx, (src_name, src_op) in enumerate(op_map.items()):  # src_idx is an integer index
-                for snk_idx, (snk_name, snk_op) in enumerate(op_map.items()):  # 
-            # for src_name, src_op in op_map.items():
-            #     for snk_name, snk_op in op_map.items():
-                    for cfg in range(ncfg):
+    with h5py.File(f"gevp_{channel}_{timestr}.h5", "w") as h5_group:
+        for src_idx, (src_name, src_op) in enumerate(op_map.items()):  # src_idx is an integer index
+            for snk_idx, (snk_name, snk_op) in enumerate(op_map.items()):  # 
+                for tsrc in range(ntsrc):
                         for t in range(nt):
                             tau = peram[tsrc, t, :, :, :, :]
                             tau_ = peram_back[tsrc, t, :, :, :, :]
@@ -200,14 +198,14 @@ def correlator_matrix(
                                 continue
                             
                             # Perform contraction
-                            meson_matrix[src_idx, snk_idx, cfg, t] = np.einsum(
+                            meson_matrix[src_idx, snk_idx, :, t] = np.einsum(
                                 "ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize="optimal"
                             )
                         # Write out 2pt correlators for the current src-snk pair
                         group_name = f"/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
                         if group_name in h5_group:
                             del h5_group[group_name]  # Clear existing data to prevent overwrites
-                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx,cfg,:])
+                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx,:,:])
 
     print("HDF5 file successfully written with GEVP data.")
     #     # write out 2pt corrs for current tsrc in loop
@@ -236,7 +234,6 @@ def main(cfg_ids, channel, h5_dir, nvec, ntsrc,task_id,show_plot=False):
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{nvec}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
     op_map = load_op_map(channel)
-    # timestr = time.strftime("%Y%m%d-%H")
     h5_output_file = f'{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5'
     # h5_output_path = os.path.join(h5_dir,h5_output_file)
     with h5py.File(h5_output_file, "w") as h5f:

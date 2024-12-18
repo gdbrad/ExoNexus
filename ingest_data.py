@@ -32,7 +32,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
     perambulator : np.ndarray
         A numpy array containing the perambulators. The shape is (num_tsrcs, max_t, 4, 4, n_vecs, n_vecs).
     """
-    print(f"Reading propagator file: {file}")
+    # print(f"Reading propagator file: {file}")
     pickle_file = "/home/grant/exotraction/peram_1001.pkl"  # Cache file name based on input parameters
     # if os.path.exists(pickle_file):
         # print('found pickle file')
@@ -112,7 +112,7 @@ def load_elemental(file: pathlib.Path | str, max_t: int, n_vecs: int, mom: str |
     #     print(f"Loading cached meson data from {cache_file}")
     #     return joblib.load(cache_file)
     
-    print(f"Reading meson elementals file: {file}")
+    # print(f"Reading meson elementals file: {file}")
     meson_data = h5py.File(file, 'r')
     n_mom = len(meson_data['t_slice_0'].keys())
     n_disp = len(meson_data['t_slice_0']['mom_0_0_0'].keys())
@@ -170,7 +170,7 @@ def reverse_perambulator_time(peram: np.ndarray) -> np.ndarray:
     peram_reverse : np.ndarray
         A numpy array containing the time-reversed perambulator, the size is (num_tsrcs, max_t, 4, 4, n_vecs, n_vecs).
     """
-    print("Computing the time-reversed perambulator")
+    # print("Computing the time-reversed perambulator")
 
     num_tsrcs, max_t, _, _, n_vecs, _ = peram.shape
     peram_reverse = np.zeros_like(peram)
