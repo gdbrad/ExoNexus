@@ -33,13 +33,13 @@ def get_dim_channel(channel:dict):
     dim = sum(map(len,channel.values()))
     return dim 
 
-type operator_list_t = tuple[str,str] 
+# type operator_list_t = tuple[str,str] 
 
-def project_op_weights(channel: str, L: int, irreps:list):
-    '''extract projected operator coefficients'''
-    ops_map = {}
+# def project_op_weights(channel: str, L: int, irreps:list):
+#     '''extract projected operator coefficients'''
+#     ops_map = {}
 
-    return  
+#     return  
 
 
 
