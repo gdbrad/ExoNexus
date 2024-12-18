@@ -242,7 +242,7 @@ def main(cfg_ids, channel, h5_dir, nvec, ntsrc,task_id,show_plot=False):
             for cfg_id in cfg_ids:
                 try:
                     two_pt_matrix = correlator_matrix(
-                    use_pickle=True,
+                    use_pickle=False,
                     h5_group=h5_group,
                     # h5_dir=h5_dir,
                     channel=str(channel),
