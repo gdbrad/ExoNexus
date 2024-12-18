@@ -249,6 +249,7 @@ def main(cfg_ids, channel, h5_dir, nvec, ntsrc,task_id,show_plot=False):
                     cfg_id=cfg_id,
                     nvec=nvec,
                     ntsrc=ntsrc,
+                    ncfg=200,
                     peram_dir=peram_dir,
                     # peram_strange_dir=peram_strange_dir,
                     meson_dir=meson_dir,
