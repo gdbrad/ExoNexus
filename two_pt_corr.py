@@ -38,7 +38,7 @@ def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt,
     peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
     meson_elemental = load_elemental(meson_file, Lt, num_vecs, mom='mom_0_0_0', disp='disp')
     peram_back = reverse_perambulator_time(peram)
-    pion = np.zeros(Lt, dtype=np.cdouble)  # Shape (96, 200) for each tsrc
+    meson = np.zeros(Lt, dtype=np.cdouble)  # Shape (96, 200) for each tsrc
     phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0])
 
     for tsrc in range(num_tsrcs):
@@ -50,10 +50,10 @@ def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt,
             contracted_result = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize='optimal')
             
             # Store the contracted result in the pion array (Lt, 200)
-            pion[t] = contracted_result  # Ensure this matches the dimension of 200.
+            meson[t] = contracted_result  # Ensure this matches the dimension of 200.
 
-        pion = pion.real
-        h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=pion)
+        meson = meson.real
+        h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
 
         if show_plot:
             plt.plot(np.arange(Lt), pion[:, 0], '.', label=f'Pion Distribution (first column) - tsrc {tsrc}, cfg {cfg_id}')
