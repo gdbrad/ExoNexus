@@ -81,7 +81,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
     return peram
 
 
-def load_elemental(file: pathlib.Path | str, max_t: int, n_vecs: int, mom: str | None = None, disp: str | None = None) -> np.ndarray:
+def load_elemental(file: str, max_t: int, n_vecs: int, mom: str | None = None, disp: str | None = None) -> np.ndarray:
     """Reads an HDF5 file written by chroma containing the meson elemental data. By default it reads all momenta and displacements, \
         unless specified by `mom` and `disp` strings
 
