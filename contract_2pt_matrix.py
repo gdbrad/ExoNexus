@@ -331,7 +331,7 @@ def main(in_file,cfg_ids,task_id):
 
     # Use operators from operator factory (mocked here for illustration)
     operators = operator_factory.a1_mp
-
+    cfg_ids = list(map(int, cfg_ids.split(',')))
     # Process each configuration ID
     for cfg_id in cfg_ids:
         try:
