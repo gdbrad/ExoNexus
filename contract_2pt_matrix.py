@@ -128,7 +128,7 @@ def contract_B_D(meson_file,nt,nvec,operator, t, add=True):
 
 from operator_factory import QuantumNum
 def correlator_matrix(
-    task_id:int,
+    task_id:str,
     use_pickle: bool,
     operators:List[QuantumNum],
     peram_dir,
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process a YAML input file for configuration processing.")
     parser.add_argument('--ini', type=str, required=True, help="Path to the YAML input file.")
     parser.add_argument('--cfg_ids',type=str)
-    parser.add_argument('--task_id',type=int)
+    parser.add_argument('--task_id',type=str)
     args = parser.parse_args()
 
     main(args.ini,args.cfg_ids,args.task_id)
