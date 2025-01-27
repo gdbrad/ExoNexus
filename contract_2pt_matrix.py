@@ -311,11 +311,11 @@ def load_op_map(channel:str):
     except AttributeError:
         raise AttributeError(f"'{channel}' not found in operator_factory")
 
-def main(in_file):
+def main(in_file,cfg_ids):
     with open(in_file, 'r') as f:
         ini = yaml.safe_load(f)
 
-    cfg_ids = ini['cfg_ids']
+    # cfg_ids = ini['cfg_ids']
     channel = ini['channel']
     nvec = ini['nvec']
     ntsrc = ini['ntsrc']
@@ -359,6 +359,7 @@ def main(in_file):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process a YAML input file for configuration processing.")
     parser.add_argument('--ini', type=str, required=True, help="Path to the YAML input file.")
+    parser.add_argument('--cfg_ids',type=int)
     args = parser.parse_args()
 
-    main(args.ini)
+    main(args.ini,args.cfg_ids)
