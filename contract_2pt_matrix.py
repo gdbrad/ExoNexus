@@ -7,6 +7,7 @@ import argparse
 import pickle 
 import pandas as pd
 import time 
+import yaml
 
 from gamma import gamma
 import operator_factory
@@ -310,47 +311,54 @@ def load_op_map(channel:str):
     except AttributeError:
         raise AttributeError(f"'{channel}' not found in operator_factory")
 
-def main(cfg_ids, channel,h5_dir, nvec, ntsrc,task_id,show_plot=False):
-    h5_path = os.path.abspath('/p/scratch/exotichadrons/exolaunch')
-    nt = 96  
+def main(in_file):
+    with open(in_file, 'r') as f:
+        ini = yaml.safe_load(f)
+
+    cfg_ids = ini['cfg_ids']
+    channel = ini['channel']
+    nvec = ini['nvec']
+    ntsrc = ini['ntsrc']
+    task_id = ini['task_id']
+    h5_path = os.path.abspath(ini['h5_base_path'])
+    nt = ini['nt']
+
+    # Define derived paths
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}', f'tsrc-{ntsrc}')
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{nvec}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
-    h5_output_file = f'gevp_{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5'
-    # h5_output_path = os.path.join(h5_dir,h5_output_file)
+    h5_output_file = f"gevp_{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5"
+
+    # Use operators from operator factory (mocked here for illustration)
     operators = operator_factory.a1_mp
 
+    # Process each configuration ID
     for cfg_id in cfg_ids:
         try:
             two_pt_matrix = correlator_matrix(
-            use_pickle=False,
-            task_id=task_id,
-            operators=operators,
-            channel='a1_mp',
-            cfg_id=cfg_id,
-            nvec=nvec,
-            ntsrc=ntsrc,
-            ncfg=200,
-            peram_dir=peram_dir,
-            meson_dir=meson_dir,
-            nt = nt,
-            debug=False
-        )
+                use_pickle=False,
+                task_id=task_id,
+                operators=operators,
+                channel=channel,
+                cfg_id=cfg_id,
+                nvec=nvec,
+                ntsrc=ntsrc,
+                ncfg=ini['ncfg'],
+                peram_dir=peram_dir,
+                meson_dir=meson_dir,
+                nt=nt,
+                debug=ini.get('debug', False)
+            )
             if not two_pt_matrix:
-                print(f"Skipping configuration {cfg_id} file is missing")
+                print(f"Skipping configuration {cfg_id}, file is missing.")
         except FileNotFoundError as e:
             print(e)
-    print(f"All cfgs processed & saved to {h5_output_file}.")
-        
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Process peram and meson files for multiple configurations.")
-    parser.add_argument('--cfg_ids', type=str, required=True, help="List of configuration IDs to process")
-    parser.add_argument('--channel', type=str, required=True, help="JPC and irrep")
-    parser.add_argument('--h5_dir', type=str, required=True, help="h5 output path")
-    parser.add_argument('--nvec', type=int, required=True, help="Number of eigenvectors")
-    parser.add_argument('--ntsrc', type=int, required=True, help="Number of source time slices")
-    parser.add_argument('--task', type=int, required=True, help="SLURM array task ID or unique identifier for this run")
-    args = parser.parse_args()
-    cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
-    main(cfg_ids=cfg_ids, channel=args.channel,h5_dir=args.h5_dir,nvec=args.nvec, ntsrc=args.ntsrc, task_id=args.task)
+    print(f"All cfgs processed & saved to {h5_output_file}.")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Process a YAML input file for configuration processing.")
+    parser.add_argument('--ini', type=str, required=True, help="Path to the YAML input file.")
+    args = parser.parse_args()
+
+    main(args.ini)
