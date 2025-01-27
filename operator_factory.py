@@ -3,6 +3,7 @@ from gamma import gamma
 import numpy as np 
 from itertools import product 
 from sympy import S
+from numpy import load 
 
 mom= 'mom_0_0_0'
 I = np.array([[1, 0],
@@ -109,15 +110,23 @@ class ProjectedOperator:
     tz: int
     states: list[int]
 
+
+
 class MomentaProjection: 
     def __init__(self):
-        pass
+        self.data_path = '/home/grant/exotraction/data'
 
     '''
     Here we define various 3-momenta conventions since angular momentum takes on a different form on the lattice and ceases to be a good quantum number
     Essentially, the same operator comes out for different relative momenta. In each dict, labeled by the total momentum P^2, all relative momenta satisfying this criteria
     are generated. Computes projected operator coefficients for non-zero total momenta
     '''
+
+    def load_coeffs(self):
+        data = load(self.data_path + f'/Oh/A1_minus.npz')
+        lst = data.files
+        for item in lst:
+            return data[item]
 
     def list_from_mom2_max(self,n):
         '''generate relative momenta for a given total momenta'''
@@ -140,5 +149,6 @@ class MomentaProjection:
         '''convert list of momenta to a numpy array'''
         return np.array([mom_list])
 
+def subduce():
+    '''subduce operators from definite continuum spin into irreps of the octahedral group to restore rotational symmetry '''
 
-print(list_from_mom2_max(n=1))

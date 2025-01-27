@@ -7,7 +7,7 @@ from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 import gamma as gamma
 
 def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt, h5_group, show_plot=False):
-    '''contractions of pion zero displacement operators 
+    '''contractions of mesonic zero displacement operators (eg. pion, kaon) 
     TODO rest of meson spectrum 
     '''
     peram_file = None

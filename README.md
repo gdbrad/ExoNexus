@@ -3,6 +3,12 @@ from https://web.mit.edu/~joshlin/www/dox/deriv__quark__displacement__w_8h_sourc
 https://arxiv.org/pdf/hep-lat/0210030
 http://arxiv.org/abs/0707.4162
 
+We employ the `opt_einsum' python library to perform contractions of meson elementals,perambulators,some gamma structure with covariant derivatives. 
+
+Here we describe the necessary ingredients:
+### Gamma conventions
+Nothing groundbreaking here, just defining various gamma conventions in order to create different mesons eg. pseudoscalars and scalars. 
+
 ## derivative quark displacement
 
 these "forward-backward" gauge covariant derivatives allow us to access states with higher angular momentum. On the latttice, these derivatives are finite displacements of quark fields connected by the gauge links. We will include zero, single, and double derivative operators. We must ensure that the operators have definite charge conjugation as well as a projection operator within the corresponding irreps.  
