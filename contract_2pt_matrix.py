@@ -311,7 +311,7 @@ def load_op_map(channel:str):
     except AttributeError:
         raise AttributeError(f"'{channel}' not found in operator_factory")
 
-def main(in_file,cfg_ids):
+def main(in_file,cfg_ids,task_id):
     with open(in_file, 'r') as f:
         ini = yaml.safe_load(f)
 
@@ -319,7 +319,7 @@ def main(in_file,cfg_ids):
     channel = ini['channel']
     nvec = ini['nvec']
     ntsrc = ini['ntsrc']
-    task_id = ini['task_id']
+    # task_id = ini['task_id']
     h5_path = os.path.abspath(ini['h5_base_path'])
     nt = ini['nt']
 
@@ -359,7 +359,8 @@ def main(in_file,cfg_ids):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process a YAML input file for configuration processing.")
     parser.add_argument('--ini', type=str, required=True, help="Path to the YAML input file.")
-    parser.add_argument('--cfg_ids',type=int)
+    parser.add_argument('--cfg_ids',type=str)
+    parser.add_argument('--task_id',type=str)
     args = parser.parse_args()
 
-    main(args.ini,args.cfg_ids)
+    main(args.ini,args.cfg_ids,args.task_id)
