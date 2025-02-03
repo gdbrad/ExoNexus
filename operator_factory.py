@@ -55,7 +55,7 @@ a1_mp = {
     "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1", strange=0,twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B",mom=mom),
 }
 
-strange_a1_m_p = {
+a1_mp_strange = {
     "kaon": QuantumNum(name="kaon",had=1, F="A1", twoI=1,strange=-1, S=0, P=-1, C=None, gamma=gamma[5],deriv=None,gamma_i=False,mom=mom),
     "kaon_2": QuantumNum(name="kaon_2",had=1, F="A1", twoI=1, strange=-1,S=1, P=-1, C=None, gamma=gamma[4]@gamma[5],gamma_i=False,deriv=None,mom=mom),
     "b_1xNABLA_A1": QuantumNum(name='b_1xB_A1',had=1, F="A1", strange=-1,twoI=1, S=0, P=-1, C=1, gamma=gamma[4]@gamma[5],gamma_i=True,deriv="nabla",mom=mom),
@@ -64,9 +64,6 @@ strange_a1_m_p = {
    
     
 }
-'a1_pionx_g5_000'
-'a1_pion_2x_g5_000'
-
 
 light_isovector = {
      "rho":  QuantumNum(name='rho',had=1, F="T1", twoI=1, strange=0,S=0, P=-1, C=-1, gamma=IDEN,gamma_i=True,deriv=None,mom=mom),
@@ -123,7 +120,7 @@ class MomentaProjection:
     '''
 
     def load_coeffs(self):
-        data = load(self.data_path + f'/Oh/A1_minus.npz')
+        data = load(self.data_path + f'/Oh/T1_minus.npz')
         lst = data.files
         for item in lst:
             return data[item]

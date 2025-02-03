@@ -5,28 +5,31 @@ import sympy
 from sympy.algebras.quaternion import * 
 from sympy import pi 
 
+# ------------ Momenta ---------------------# 
+
+def order_momenta(mom):
+    '''put momentum 3-tuple into canonical order '''
+
+
 def cm_to_lab(mom):
     '''transformation from COM frame to lab frame'''
     
 
-@dataclass
-class CubicCanonicalRotation: 
-    alpha: np.cdouble
-    beta: np.cdouble 
-    gamma: np.cdouble
-
-def return_rotation_euler(angles:list[sympy.re],seq='xyz'):
-    '''return rotation matrix D_mumu calculated from the Euler angles; 
-    {phi,theta,psi} in units of pi
-    
-    '''
-    rot_matrix = sympy.algebras.Quaternion.from_euler(angles,seq)
-
-    return rot_matrix 
+def operator_list_irrepmom(irrep):
+    pass 
 
 @dataclass
 class IrrepNames: 
     name: str 
+    wp: str 
+    np: str
+    ferm: bool #double cover 
+    lg: bool 
+    dim: int 
+    G: int 
+
+
+
 
 @dataclass 
 class CubicRep:

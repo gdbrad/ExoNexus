@@ -11,11 +11,12 @@ When we contract the perambulator and meson elementalss, we must average over al
     args: 3 
     Options:
 
-    000
-    n00
-    nn0
+    Group | $\Lambda^c$ (dim) | # ops
+    000   | 
+    n00   | Di_c4
+    nn0   | Di_c2
     nm0
-    nnn
+    nnn   | Di_c4
     nnm
     nmk
 - operators: 

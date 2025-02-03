@@ -1,3 +1,6 @@
+contract-log/
+*.log
+h5-out/
 *.h5
 *.pyc
 *.pkl

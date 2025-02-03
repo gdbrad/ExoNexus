@@ -1,5 +1,5 @@
 import h5py
-import numpy as np
+import numpy as np 
 from typing import List,Dict 
 import os
 import argparse
@@ -11,11 +11,19 @@ import yaml
 
 from gamma import gamma
 import operator_factory
+from operator_factory import QuantumNum
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 
 timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1],gamma[2],gamma[3],gamma[4]]
 
+def use_gpu_einsum(gpu):
+    """Returns the appropriate einsum function based on GPU flag."""
+    if gpu:
+        import cupy as cp
+        return cp, cp.einsum
+    else:
+        return np, np.einsum
 
 def check_files(num_vecs,cfg_id,peram_dir,peram_strange_dir,meson_dir):
     
@@ -58,6 +66,7 @@ def check_files(num_vecs,cfg_id,peram_dir,peram_strange_dir,meson_dir):
 
 
 def contract_local(meson_file,nt,nvec,operator, t):
+    
     D0 = load_elemental(meson_file, nt, nvec, mom='mom_0_0_0', disp='disp')
 
     phi_0 = np.einsum("ij,ab->ijab", operator.gamma, D0[0])
@@ -125,14 +134,15 @@ def contract_B_D(meson_file,nt,nvec,operator, t, add=True):
                D2D3_phi_t_5 - coeff * D2D3_phi_t_6)
 
     return gixBi, gixBi_t
+##---------------------------------------------------------------------------------------##
 
-from operator_factory import QuantumNum
 def correlator_matrix(
     task_id:str,
     use_pickle: bool,
     operators:List[QuantumNum],
     peram_dir,
     meson_dir,
+    peram_strange_dir,
     nt:int,
     channel: str,
     cfg_id, # each cfg is processed one by one maybe this can be parallelized
@@ -156,6 +166,13 @@ def correlator_matrix(
                 break
         peram = load_peram(peram_file, nt, nvec, ntsrc)
 
+    peram_strange_filename = f"peram_strange_nv{nvec}_cfg{cfg_id}.h5"
+    for file in os.listdir(peram_strange_dir):
+            if file == peram_strange_filename:
+                peram_strange_file = os.path.join(peram_strange_dir, file)
+                break
+    peram_strange = load_peram(peram_strange_file,nt,nvec,ntsrc)
+
     # set meson elemental h5 path 
     meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
     for file in os.listdir(meson_dir):
@@ -172,7 +189,7 @@ def correlator_matrix(
                 peram_back = reverse_perambulator_time(peram)
 
     meson_matrix = np.zeros((len(operators),len(operators),nt),dtype=np.cdouble)
-    with h5py.File(f"gevp_{channel}_{timestr}_{task_id}.h5", "w") as h5_group:
+    with h5py.File(f"h5-out/gevp_{channel}_{timestr}_{task_id}.h5", "w") as h5_group:
         for src_idx, (src_name, src_op) in enumerate(operators.items()):  # src_idx is an integer index
             for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):  # 
                 for tsrc in range(ntsrc):
@@ -215,93 +232,6 @@ def correlator_matrix(
     print("HDF5 file successfully written with GEVP data.")
 #---------------------------------------------------------------------------------------------------------#
 
-def correlator_matrix_debug(
-    use_pickle: bool,
-    task_id:int,
-    operators: List[QuantumNum],
-    peram_dir,
-    meson_dir,
-    nt: int,
-    channel: str,
-    cfg_id,  # each cfg is processed one by one; maybe this can be parallelized
-    ncfg: int,
-    ntsrc: int,
-    nvec: int,
-    dry_run: bool = True,  # Enable dry-run mode
-):
-    # Load pickle files if specified
-    if use_pickle:
-        pick_light = 'peram_light_1001.pkl'
-        pick_strange = 'peram_strange_1001.pkl'
-        peram = pd.read_pickle(pick_light)
-        peram_strange = pd.read_pickle(pick_strange)
-        print(f"Loaded perambulators from pickle:")
-        print(f"Light: {peram.shape}, Strange: {peram_strange.shape}")
-    else:
-        peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
-        for file in os.listdir(peram_dir):
-            if file == peram_filename:
-                peram_file = os.path.join(peram_dir, file)
-                break
-        peram = load_peram(peram_file, nt, nvec, ntsrc)
-
-    # Set meson HDF5 file path
-    meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
-    for file in os.listdir(meson_dir):
-        if file == meson_filename:
-            meson_file = os.path.join(meson_dir, file)
-            break
-
-    # Handle backward perambulator based on strangeness
-    for i, op in enumerate(operators):
-        if operators[op].strange != 0:
-            peram_back = reverse_perambulator_time(peram_strange)
-        else:
-            peram_back = reverse_perambulator_time(peram)
-
-    if not dry_run:
-        # Initialize meson matrix only in non-dry-run mode
-        meson_matrix = np.zeros((len(operators), len(operators), ncfg, nt), dtype=np.cdouble)
-
-    timestr = time.strftime("%Y%m%d-%H%M%S")
-    print(f"Dry-run mode: {dry_run}")
-    print(f"Configuration ID: {cfg_id}, Channel: {channel}")
-    print(f"Number of configurations: {ncfg}, Number of timeslices: {nt}, Source time slices: {ntsrc}\n")
-
-    # Iterate through operators and print what would be done
-    for src_idx, (src_name, src_op) in enumerate(operators.items()):
-        for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
-            for tsrc in range(ntsrc):
-                for t in range(nt):
-                    print(f"Would process:")
-                    print(f"  Source operator: {src_name} ({src_op})")
-                    print(f"  Sink operator: {snk_name} ({snk_op})")
-                    print(f"  Time source slice: {tsrc}, Time slice: {t}")
-                    print(f"  Expected dataset path: /{src_name}_{snk_name}/tsrc_{tsrc}/cfg_{cfg_id}")
-
-                    # Debugging shapes of arrays (mocked here)
-                    print("  Shapes:")
-                    print(f"    tau: {peram[tsrc, t, :, :, :, :].shape}")
-                    print(f"    tau_: {peram_back[tsrc, t, :, :, :, :].shape}")
-
-                    if src_op.deriv is None:
-                        print("    Source phi_0: Local contraction")
-                    elif src_op.deriv == "nabla":
-                        print("    Source phi_0: Nabla contraction")
-                    elif src_op.deriv in ["B", "D"]:
-                        print(f"    Source phi_0: {'B' if src_op.deriv == 'B' else 'D'} contraction")
-
-                    if snk_op.deriv is None:
-                        print("    Sink phi_t: Local contraction")
-                    elif snk_op.deriv == "nabla":
-                        print("    Sink phi_t: Nabla contraction")
-                    elif snk_op.deriv in ["B", "D"]:
-                        print(f"    Sink phi_t: {'B' if snk_op.deriv == 'B' else 'D'} contraction")
-
-                    print("-" * 80)
-
-    print("Dry-run completed. No computations or file writes performed.")
-
 def load_op_map(channel:str):
     try:
         op_map = getattr(operator_factory, channel)
@@ -314,12 +244,11 @@ def load_op_map(channel:str):
 def main(in_file,cfg_ids,task_id):
     with open(in_file, 'r') as f:
         ini = yaml.safe_load(f)
-
-    # cfg_ids = ini['cfg_ids']
+    
+    # input from yaml file 
     channel = ini['channel']
     nvec = ini['nvec']
     ntsrc = ini['ntsrc']
-    # task_id = ini['task_id']
     h5_path = os.path.abspath(ini['h5_base_path'])
     nt = ini['nt']
 
@@ -327,12 +256,16 @@ def main(in_file,cfg_ids,task_id):
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}', f'tsrc-{ntsrc}')
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{nvec}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
-    h5_output_file = f"gevp_{channel}_nvec_{nvec}_tsrc_{ntsrc}_task{task_id}.h5"
+    h5_output_file = f"h5-out/gevp_{channel}_task{task_id}.h5"
 
-    # Use operators from operator factory (mocked here for illustration)
-    operators = operator_factory.a1_mp
+    # Use operators from operator factory
+    # operators = operator_factory.a1_mp
+    operators = load_op_map(channel)
+
+    # get cfg_ids from slurm script into correct format
     cfg_ids = list(map(int, cfg_ids.split(',')))
-    # Process each configuration ID
+
+    # Process each configuration
     for cfg_id in cfg_ids:
         try:
             two_pt_matrix = correlator_matrix(
@@ -346,6 +279,7 @@ def main(in_file,cfg_ids,task_id):
                 ncfg=ini['ncfg'],
                 peram_dir=peram_dir,
                 meson_dir=meson_dir,
+                peram_strange_dir=peram_strange_dir,
                 nt=nt,
                 debug=ini.get('debug', False)
             )

@@ -13,4 +13,7 @@ path = '/home/grant/external/mhi/test/data/spinless'
 from operator_factory import MomentaProjection
 mom = MomentaProjection()
 # print(MomentaProjection.load_coeffs(mom='000'))
-print(mom.load_coeffs(mom='100'))
+print(mom.load_coeffs())
+
+def parse_cgs():
+    
