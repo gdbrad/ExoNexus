@@ -3,6 +3,17 @@ from https://web.mit.edu/~joshlin/www/dox/deriv__quark__displacement__w_8h_sourc
 https://arxiv.org/pdf/hep-lat/0210030
 http://arxiv.org/abs/0707.4162
 
+## Running contractions on JURECA 
+create a yaml input file see `a1mp.ini.yml` for an example 
+modify the slurm batch script see `slurm-test.sh` for example
+`sbatch slurm-test.sh` 
+
+2. we will now have a collection of h5 files which contain mesonic correlator data for a set of configurations (set to 5). these need to be merged into a single h5 file so run the script `python3 merge_h5.py` _this should be done automatically once all the slurm jobs complete_ 
+
+3. now we need to project the correlators into the correct irrep , resulting in another h5 file WIP 
+
+4. at this point the `exotraction` module has served its purpose. Head on over to `corrfit-exotics` for GEVP routines  
+
 We employ the `opt_einsum' python library to perform contractions of meson elementals,perambulators,some gamma structure with covariant derivatives. 
 
 Here we describe the necessary ingredients:
