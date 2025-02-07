@@ -2,6 +2,21 @@ from https://web.mit.edu/~joshlin/www/dox/deriv__quark__displacement__w_8h_sourc
 
 https://arxiv.org/pdf/hep-lat/0210030
 
+## single hadron operators 
+
+### pion 
+The pion with $J^{PC}=0^{-}$ with zero total momentum trivially subduces into the 1D $A_1^{-}$ irrep which has a subduction coeff of 1, thus nothing needs to be done internally within the contractions. 
+
+CHECK THIS: operators at rest reside in irreps of double-covers of the octahedral group with parity, defined as $O_h^D$. 
+
+### pion in flight 
+00n $-\in Dic_4$
+0nn
+nnn
+nm0
+nnm 
+### kaon 
+
 ## derivative quark displacement
 
 these "forward-backward" gauge covariant derivatives allow us to access states with higher angular momentum. On the latttice, these derivatives are finite displacements of quark fields connected by the gauge links. We will include zero, single, and double derivative operators. We must ensure that the operators have definite charge conjugation as well as a projection operator within the corresponding irreps.  

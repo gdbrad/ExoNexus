@@ -1,0 +1,9 @@
+#cfg_ids: [101,102]
+channel: "a1_mp_strange"
+nvec: 96
+ntsrc: 24
+#task_id: 1
+nt: 96
+h5_base_path: "/p/scratch/exotichadrons/exolaunch"
+#ncfg: 200
+#debug: false

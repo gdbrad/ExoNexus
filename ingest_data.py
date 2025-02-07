@@ -2,7 +2,6 @@ import pathlib
 import h5py
 import numpy as np
 import os 
-import tqdm
 from gamma import gamma
 import pickle
 
@@ -52,7 +51,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
     # Open the file for reading
     with h5py.File(file, 'r') as f:
     # Loop over all t_sources (t_source_0, t_source_4, ..., t_source_92)
-        for t_src_idx in tqdm.trange(0, num_tsrcs, leave=False, desc="Loading t_sources"):
+        for t_src_idx in range(0, num_tsrcs):
             t_src_group_name = f't_source_{t_src_idx * 4}'  # Assuming the t_sources are spaced by 4 (e.g., 0, 4, 8, ...)
             if t_src_group_name not in f:
                 print(f"Warning: {t_src_group_name} not found in {file}. Skipping...")
@@ -60,7 +59,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
             t_source_data = f[t_src_group_name]
 
             # Loop over all t_slices for this t_source
-            for t_slice_idx in tqdm.trange(0, max_t, leave=False, desc="Loading t_slices"):
+            for t_slice_idx in range(0, max_t):
                 t_slice_data = t_source_data[f't_slice_{t_slice_idx}']
                 
                 # Loop over the spin sources and spin sinks
@@ -119,7 +118,7 @@ def load_elemental(file: str, max_t: int, n_vecs: int, mom: str | None = None, d
 
     if not mom and not disp:
         meson = np.zeros((max_t, n_mom, n_disp, n_vecs, n_vecs), dtype=np.cdouble)
-        for t_slice_idx in tqdm.trange(0, max_t, leave=False):
+        for t_slice_idx in range(0, max_t):
             t_slice_data = meson_data[f't_slice_{t_slice_idx}']
             for mom_idx in range(0, 19):
                 mom_data = t_slice_data[mom_keys[mom_idx]]
@@ -130,7 +129,7 @@ def load_elemental(file: str, max_t: int, n_vecs: int, mom: str | None = None, d
                     
     elif not mom and disp:
         meson = np.zeros((max_t, n_mom, n_vecs, n_vecs), dtype=np.cdouble)
-        for t_slice_idx in tqdm.trange(0, max_t, leave=False):
+        for t_slice_idx in range(0, max_t):
             t_slice_data = meson_data[f't_slice_{t_slice_idx}']
             for mom_idx in range(0, 19):
                 mom_data = t_slice_data[mom_keys[mom_idx]]
@@ -141,7 +140,7 @@ def load_elemental(file: str, max_t: int, n_vecs: int, mom: str | None = None, d
 
     elif mom and disp:
         meson = np.zeros((max_t, n_vecs, n_vecs), dtype=np.cdouble)
-        for t_slice_idx in tqdm.trange(0, max_t, leave=False):
+        for t_slice_idx in range(0, max_t):
             t_slice_data = meson_data[f't_slice_{t_slice_idx}']
             mom_data = t_slice_data[mom]
             disp_data = mom_data[disp]
@@ -178,8 +177,8 @@ def reverse_perambulator_time(peram: np.ndarray) -> np.ndarray:
     peramb_reverse = np.zeros((num_tsrcs, max_t, 4, 4, n_vecs, n_vecs), dtype=np.cdouble)
 
     # Loop over all time sources (tsrc)
-    for tsrc_idx in tqdm.trange(num_tsrcs, leave=False, desc="Reversing time for all t_sources"):
-        for t_slice_idx in tqdm.trange(max_t, leave=False, desc=f"t_slice for tsrc {tsrc_idx}"):
+    for tsrc_idx in range(num_tsrcs):
+        for t_slice_idx in range(max_t):
             for spin_src_idx in range(4):
                 for spin_snk_idx in range(4):
                     # Reverse time slice by taking conjugate transpose
@@ -188,8 +187,8 @@ def reverse_perambulator_time(peram: np.ndarray) -> np.ndarray:
 
     # Apply gamma_5 to reverse time and space directions as per the required transformation
 #     return np.einsum("ab,tbcij,cd->tdaij", gamma[5], peramb_reverse, gamma[5], optimize='optimal')
-    print("gamma[5] shape:", gamma[5].shape)  # Should be (4, 4)
-    print("peramb_reverse shape:", peramb_reverse.shape)  # Should be (nu
+    # print("gamma[5] shape:", gamma[5].shape)  # Should be (4, 4)
+    # print("peramb_reverse shape:", peramb_reverse.shape)  # Should be (nu
     peramb_reverse = np.einsum(
         "ab,tsbcij,cd->tsdaij",  # Modified einsum for all t_sources
         gamma[5], peramb_reverse, gamma[5],

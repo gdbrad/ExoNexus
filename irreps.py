@@ -1,4 +1,15 @@
 from dataclasses import dataclass
+import numpy as np 
+import itertools
+
+class Oh: 
+    def __init__(self):
+        pass
+
+    
+
+
+
 
 @dataclass
 class IrrepNames:

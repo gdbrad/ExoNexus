@@ -5,4 +5,4 @@ h5-out/
 *.pyc
 *.pkl
 __pycache__
-old/
+exo-env/
