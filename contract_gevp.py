@@ -6,6 +6,7 @@ import pickle
 import pandas as pd
 import time
 import yaml
+import sys
 
 from gamma import gamma
 import operator_factory
@@ -13,6 +14,11 @@ from operator_factory import QuantumNum
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from mpi4py import MPI
 # from opt_einsum import contract
+
+size = MPI.COMM_WORLD.Get_size()
+rank = MPI.COMM_WORLD.Get_rank()
+name = MPI.Get_processor_name()
+cfg_id=(rank+1)*10 + 1
 
 timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1], gamma[2], gamma[3], gamma[4]]
@@ -173,7 +179,7 @@ def load_op_map(channel:str):
         raise AttributeError(f"'{channel}' not found in operator_factory")
     
 invalid_cfgs = {
-    21, 171, 1061, 1271, 1371, 1451, 1531, 
+    21, 171, 1001, 1061, 1271, 1371, 1451, 1531, 
     1591, 1611, 1641, 1711, 1781, 1851, 
     1871, 1901, 1941, 1991
 }
@@ -183,21 +189,9 @@ def get_valid_cfgs(start_cfg, end_cfg):
     Generate a list of valid configurations that are not in the exclusion list.
     Distribute configurations among processes.
     """
-    all_cfgs = [cfg for cfg in range(start_cfg, end_cfg, 10) if cfg not in invalid_cfgs]
-    # return [cfg for i, cfg in enumerate(all_cfgs) if i % numprocs == rank]
-    return all_cfgs
+    return [cfg for cfg in range(start_cfg, end_cfg, 10) if cfg not in invalid_cfgs]
 
 def main(in_file, strange):
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    numprocs = comm.Get_size()
-
-    start_cfg = 11    # Adjust based on your setup
-    end_cfg = 1992   # Adjust based on your dataset
-
-    # Get valid configurations assigned to this process
-    valid_cfgs = get_valid_cfgs(start_cfg, end_cfg)
-
     with open(in_file, 'r') as f:
         ini = yaml.safe_load(f)
 
@@ -212,24 +206,21 @@ def main(in_file, strange):
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
 
     operators = load_op_map(channel)
-    for cfg_id in valid_cfgs:
-        if cfg_id is not None:
-            print(f"Processing configuration: {cfg_id}")
-            try:
-                correlator_matrix(
-                    operators=operators,
-                    channel=channel,
-                    cfg_id=cfg_id,
-                    nvec=nvec,
-                    ntsrc=ntsrc,
-                    peram_dir=peram_dir,
-                    meson_dir=meson_dir,
-                    peram_strange_dir=peram_strange_dir,
-                    nt=nt,
-                    strange=strange
-                )
-            except FileNotFoundError as e:
-                print(e)
+    try:
+        correlator_matrix(
+            operators=operators,
+            channel=channel,
+            cfg_id=cfg_id,
+            nvec=nvec,
+            ntsrc=ntsrc,
+            peram_dir=peram_dir,
+            meson_dir=meson_dir,
+            peram_strange_dir=peram_strange_dir,
+            nt=nt,
+            strange=strange
+        )
+    except FileNotFoundError as e:
+        print(e)
 
     print("Processing complete.")
 
@@ -238,6 +229,5 @@ if __name__ == '__main__':
     parser.add_argument('--ini', type=str, required=True)
     parser.add_argument('--strange', action='store_true', help="strange operators")
     
-
     args = parser.parse_args()
     main(args.ini, args.strange)

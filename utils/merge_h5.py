@@ -14,7 +14,6 @@ def merge_h5_files(input_files, output_file):
         input_files (list): List of input HDF5 file paths.
         output_file (str): Path to the merged output file.
     """
-    
     if not input_files:
         print("No input files provided. Exiting.")
         return
@@ -40,23 +39,20 @@ def copy_and_store_groups(in_f, out_f, cfg_id, path="/"):
     """
     for key in in_f[path]:
         in_obj = in_f[path][key]
-        out_path = os.path.join(path, key)  # Construct full path
+        out_path = os.path.join(path, key)  
 
         if isinstance(in_obj, h5py.Group):
-            # Recursively create groups
             if out_path not in out_f:
                 out_f.create_group(out_path)
             copy_and_store_groups(in_f, out_f, cfg_id, out_path)
         
         elif isinstance(in_obj, h5py.Dataset):
-            # Extract only the real part
             real_data = np.real(in_obj[()])
 
             if real_data.shape[-1] != 96:
                 print(f"Warning: Unexpected dataset shape {real_data.shape} in {out_path}, skipping.")
                 return
             
-            # Store the dataset under a new name per configuration
             cfg_dataset_name = f"{out_path}/cfg{cfg_id}"
             if cfg_dataset_name not in out_f:
                 out_f.create_dataset(cfg_dataset_name, data=real_data, dtype=real_data.dtype)
@@ -67,12 +63,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Merge HDF5 files while extracting only the real part of data.")
     parser.add_argument("--input", type=str, required=True, help="Input directory containing HDF5 files")
     parser.add_argument("--output", type=str, required=True, help="Output merged HDF5 file")
-    
     args = parser.parse_args()
     
-    # Find all .h5 files in input directory
-    input_files = sorted(glob.glob(os.path.join(args.input, "*.h5")))  # Ensure consistent ordering
-
+    input_files = sorted(glob.glob(os.path.join(args.input, "*.h5"))) 
     if not input_files:
         print("No HDF5 files found in the input directory.")
     else:
