@@ -6,3 +6,5 @@ h5-out/
 *.pkl
 __pycache__
 exo-env/
+*.err
+*.log

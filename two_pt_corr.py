@@ -6,16 +6,22 @@ import datetime
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 import gamma as gamma
 
-def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt, h5_group, show_plot=False):
+def process_configuration(cfg_id, peram_dir,peram_strange_dir, meson_dir, Lt, h5_group, strange):
     '''contractions of mesonic zero displacement operators (eg. pion, kaon) 
     TODO rest of meson spectrum 
     '''
+
+    num_vecs = 96
+    num_tsrcs = 24
     peram_file = None
     peram_filename = f"peram_{num_vecs}_cfg{cfg_id}.h5"
     for file in os.listdir(peram_dir):
         if file == peram_filename:
             peram_file = os.path.join(peram_dir, file)
             break
+    peram_strange_filename = f"peram_strange_nv{num_vecs}_cfg{cfg_id}.h5"
+    peram_strange_file = os.path.join(peram_strange_dir, peram_strange_filename)
+    peram_strange = load_peram(peram_strange_file, Lt, num_vecs, num_tsrcs)
 
     meson_file = None
     meson_filename = f"meson-{num_vecs}_cfg{cfg_id}.h5"
@@ -37,7 +43,10 @@ def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt,
     # Load perambulator and meson elemental
     peram = load_peram(peram_file, Lt, num_vecs, num_tsrcs)
     meson_elemental = load_elemental(meson_file, Lt, num_vecs, mom='mom_0_0_0', disp='disp')
-    peram_back = reverse_perambulator_time(peram)
+    if strange:
+        peram_back = reverse_perambulator_time(peram_strange)
+    else:
+        peram_back = reverse_perambulator_time(peram)
     meson = np.zeros(Lt, dtype=np.cdouble)  # Shape (96, 200) for each tsrc
     phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0])
 
@@ -55,27 +64,30 @@ def process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt,
         meson = meson.real
         h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson)
 
-        if show_plot:
-            plt.plot(np.arange(Lt), pion[:, 0], '.', label=f'Pion Distribution (first column) - tsrc {tsrc}, cfg {cfg_id}')
-            plt.yscale('log')
-            plt.legend()
-            plt.savefig(f'pion-{cfg_id}-tsrc-{tsrc}-{num_vecs}-{datetime.datetime.today()}.pdf')
+        # if show_plot:
+        #     plt.plot(np.arange(Lt), pion[:, 0], '.', label=f'Pion Distribution (first column) - tsrc {tsrc}, cfg {cfg_id}')
+        #     plt.yscale('log')
+        #     plt.legend()
+        #     plt.savefig(f'pion-{cfg_id}-tsrc-{tsrc}-{num_vecs}-{datetime.datetime.today()}.pdf')
 
     print(f"Cfg {cfg_id} processed successfully.")
     return True
 
-def main(cfg_ids, num_vecs, num_tsrcs, task_id,show_plot=False):
+def main(cfg_ids, strange,task_id):
     h5_path = os.path.abspath('/p/scratch/exotichadrons/exolaunch')
     Lt = 96  
+    num_vecs = 96
+    num_tsrcs=24
     peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{num_vecs}', f'tsrc-{num_tsrcs}')
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{num_vecs}')
+    peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
 
-    h5_output_file = f'pion_2pt_nvec_{num_vecs}_tsrc_{num_tsrcs}_task{task_id}.h5'
+    h5_output_file = f'kaon_2pt_nvec_{num_vecs}_tsrc_{num_tsrcs}_task{task_id}.h5'
     with h5py.File(h5_output_file, "w") as h5f:
-        h5_group = h5f.create_group('pion_000')
+        h5_group = h5f.create_group('kaon_000')
         for cfg_id in cfg_ids:
             try:
-                processed = process_configuration(cfg_id, num_vecs, num_tsrcs, peram_dir, meson_dir, Lt, h5_group, show_plot)
+                processed = process_configuration(cfg_id,peram_dir,peram_strange_dir, meson_dir, Lt, h5_group,strange)
                 if not processed:
                     print(f"Skipping configuration {cfg_id} file is missing")
             except FileNotFoundError as e:
@@ -86,9 +98,7 @@ def main(cfg_ids, num_vecs, num_tsrcs, task_id,show_plot=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process peram and meson files for multiple configurations.")
     parser.add_argument('--cfg_ids', type=str, required=True, help="List of configuration IDs to process")
-    parser.add_argument('--nvec', type=int, required=True, help="Number of eigenvectors")
-    parser.add_argument('--ntsrc', type=int, required=True, help="Number of source time slices")
-    parser.add_argument('--plot', action='store_true', help="Show plot of pion distribution")
+    parser.add_argument('--strange', action='store_true', help="strange operators")
     parser.add_argument('--task', type=int, required=True, help="SLURM array task ID or unique identifier for this run")
 
 
@@ -98,4 +108,4 @@ if __name__ == '__main__':
     # else:
     cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
 
-    main(cfg_ids=cfg_ids, num_vecs=args.nvec, num_tsrcs=args.ntsrc, show_plot=args.plot,task_id=args.task)
+    main(cfg_ids=cfg_ids,strange=args.strange,task_id=args.task)

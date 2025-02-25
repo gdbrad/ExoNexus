@@ -2,8 +2,6 @@ import h5py
 import numpy as np
 import os
 import argparse
-import pickle
-import pandas as pd
 import time
 import yaml
 import sys
@@ -14,12 +12,6 @@ from operator_factory import QuantumNum
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from mpi4py import MPI
 # from opt_einsum import contract
-
-size = MPI.COMM_WORLD.Get_size()
-rank = MPI.COMM_WORLD.Get_rank()
-name = MPI.Get_processor_name()
-cfg_id=(rank+1)*10 + 1
-
 timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1], gamma[2], gamma[3], gamma[4]]
 
@@ -36,14 +28,6 @@ def contract_nabla(meson_file, nt, nvec, operator, t):
     D2 = load_elemental(meson_file, nt, nvec, mom='mom_0_0_0', disp='disp_2')
     D3 = load_elemental(meson_file, nt, nvec, mom='mom_0_0_0', disp='disp_3')
 
-    # nabla_0 = sum(
-    #     np.einsum("ij,ab->ijab", operator.gamma @ gamma_i[i], D1[0] if i == 0 else D2[0] if i == 1 else D3[0])
-    #     for i in range(3)
-    # )
-    # nabla_t = sum(
-    #     np.einsum("ij,ab->ijab", operator.gamma @ gamma_i[i], D1[t] if i == 0 else D2[t] if i == 1 else D3[t])
-    #     for i in range(3)
-    # )
     nabla_0 = sum(
     np.einsum("ij,ab->ijab", operator.gamma @ gamma_i[i], D1[0] if i == 0 else D2[0] if i == 1 else D3[0], optimize="optimal") 
     for i in range(3)
@@ -104,7 +88,7 @@ def contract_B_D(meson_file,nt,nvec,operator, t, add=True):
 
 
 def correlator_matrix(operators, peram_dir, meson_dir, peram_strange_dir, nt, channel, cfg_id, ntsrc, nvec, strange):
-    
+     
     peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
     peram_file = os.path.join(peram_dir, peram_filename)
     peram = load_peram(peram_file, nt, nvec, ntsrc)
@@ -122,12 +106,13 @@ def correlator_matrix(operators, peram_dir, meson_dir, peram_strange_dir, nt, ch
             peram_back = reverse_perambulator_time(peram_strange)
         else:
             peram_back = reverse_perambulator_time(peram)
+    
 
     meson_matrix = np.zeros((len(operators), len(operators), nt), dtype=np.cdouble)
     if strange:
         h5_file = f"h5-kaon/test_gevp_strange_{channel}_{timestr}_{cfg_id}.h5" 
     else:
-        h5_file = f"h5-mpi/test_gevp_light_{channel}_{timestr}_{cfg_id}.h5" 
+        h5_file = f"h5-pion/test_gevp_light_{channel}_{timestr}_{cfg_id}.h5" 
 
     with h5py.File(h5_file, "w") as h5_group:
         for src_idx, (src_name, src_op) in enumerate(operators.items()):
@@ -192,6 +177,40 @@ def get_valid_cfgs(start_cfg, end_cfg):
     return [cfg for cfg in range(start_cfg, end_cfg, 10) if cfg not in invalid_cfgs]
 
 def main(in_file, strange):
+    # comm = MPI.COMM_WORLD
+    # size = comm.Get_size()
+    # rank = comm.Get_rank()
+    # print(f"Rank {rank}/{size}: Entering main()")  # Debug print
+
+    # valid_cfgs = get_valid_cfgs(11, 1991)
+    # cfg_id = (rank + 1) * 10 + 1
+
+    # print(f"Rank {rank}: Processing cfg_id {cfg_id}") 
+    size = MPI.COMM_WORLD.Get_size()
+    rank = MPI.COMM_WORLD.Get_rank()
+    name = MPI.Get_processor_name()
+    print(f"Getting configuration for rank {rank}",flush=False)
+    invalid_cfgs = {21, 171, 1001, 1061, 1271, 1371, 1451, 1531, 1591, 1611, 1641, 1711, 1781, 1851, 1871, 1901, 1941, 1991}
+    valid_cfgs = get_valid_cfgs(11,1991)
+    cfg_id = valid_cfgs[rank % len(valid_cfgs)]
+    # cfg_id=(rank+1)*10 + 1
+    if (cfg_id in invalid_cfgs) or (cfg_id > 1991):
+        # exit()
+        print(f"Rank {rank}: Skipping invalid cfg_id {cfg_id}",flush=False)
+        MPI.COMM_WORLD.Barrier()
+        MPI.Finalize()
+        sys.exit(0)
+     # Debug print
+    # invalid_cfgs = {21, 171, 1001, 1061, 1271, 1371, 1451, 1531,
+    # 1591, 1611, 1641, 1711, 1781, 1851,
+    # 1871, 1901, 1941, 1991
+    # }
+    
+    # if cfg_id==1001:
+    #     print(f"Rank {rank} skipping cfg_id {cfg_id}.")
+    #     comm.Barrier() 
+    #     # exit()
+    #     return
     with open(in_file, 'r') as f:
         ini = yaml.safe_load(f)
 
@@ -207,6 +226,8 @@ def main(in_file, strange):
 
     operators = load_op_map(channel)
     try:
+        print(f"Rank {rank} will now read/write file {cfg_id}...",flush=False)
+        print(f"Rank {rank} has finished reading/writing file {cfg_id}.",flush=False)
         correlator_matrix(
             operators=operators,
             channel=channel,
@@ -228,6 +249,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process a YAML input file.")
     parser.add_argument('--ini', type=str, required=True)
     parser.add_argument('--strange', action='store_true', help="strange operators")
-    
     args = parser.parse_args()
     main(args.ini, args.strange)
+

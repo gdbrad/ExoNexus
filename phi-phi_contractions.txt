@@ -1,13 +1,33 @@
-phi-phi contractions
+pi-pi contractions
 
 naming conventions
-phi1_phi2_Iz_A1_Ptot_p1_p2
+pi1_pi2_Iz_A1_Ptot_p1_p2
 eg
 pion_kaon_Iz32_A1_100_100_000
 
 the momentum label 100 corresponds to all orientations of (1,0,0).
 these contractions will correctly average over the various orientations.
-
+---------------------------------
+<elem>0 0 0</elem>
+<elem>1 0 0</elem>
+<elem>-1 0 0</elem>
+<elem>0 1 0</elem>
+<elem>0 -1 0</elem>
+<elem>0 0 1</elem>
+<elem>0 0 -1</elem>
+<elem>2 0 0</elem>
+<elem>-2 0 0</elem>
+<elem>0 2 0</elem>
+<elem>0 -2 0</elem>
+<elem>0 0 2</elem>
+<elem>0 0 -2</elem>
+<elem>3 0 0</elem>
+<elem>-3 0 0</elem>
+<elem>0 3 0</elem>
+<elem>0 -3 0</elem>
+<elem>0 0 3</elem>
+<elem>0 0 -3</elem>
+----------------------------------
 pipi
 
 # Inelastic threshold begins at E = 4mpi
