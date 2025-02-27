@@ -115,13 +115,25 @@ build a 2x2 correlation matrix with both operators gamma_i, nabla_i
 
 derivative based gamma operators result in elementals no longer diagonal in distillation space 
 
-pion operators:
+## pion operators:
 pionxNABLA_T1
 pion_2xNABLA_T1
 pionxD_T2
 pion_2xD_T2
 pionxB_T1
 pion_2xB_T1
+
+The pion with $J^{PC}=0^{-}$ with zero total momentum trivially subduces into the 1D $A_1^{-}$ irrep which has a subduction coeff of 1, thus nothing needs to be done internally within the contractions. 
+
+CHECK THIS: operators at rest reside in irreps of double-covers of the octahedral group with parity, defined as $O_h^D$. 
+
+### pion in flight 
+00n $-\in Dic_4$
+0nn
+nnn
+nm0
+nnm 
+
 
 full list of operators at the source: 
 
@@ -140,3 +152,15 @@ full list of operators at the source:
 		     "rho_2xB_A1", "rho_2xB_T1", "rho_2xB_T2", "rho_2xB_E", 
 		     "a1xB_A1", "a1xB_T1", "a1xB_T2", "a1xB_E",
 		     "b1xB_A1", "b1xB_T1", "b1xB_T2", "b1xB_E")
+
+## projected operators 
+
+In order to select the irreps commensurate with the given momentum, P^2, and "project out" existing two-point correlators into the correct irrep, we have to __extract projected operator coefficients__ 
+
+How JLAB does it in ``nstar`` is to read in all of the ops and build a big map. 
+
+So we need to: 
+```
+for ir in irreps: 
+    get all possible states in irrep 
+    extract projected operator for state in states in irrep 

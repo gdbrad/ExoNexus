@@ -5,6 +5,6 @@ h5-out/
 *.pyc
 *.pkl
 __pycache__
-exo-env/
+exo/
 *.err
 *.log

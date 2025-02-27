@@ -1,5 +1,0 @@
-channel: "kaon_single"
-nvec: 96
-ntsrc: 24
-nt: 96
-h5_base_path: "/p/scratch/exotichadrons/exolaunch"

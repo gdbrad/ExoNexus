@@ -9,6 +9,27 @@ from typing import Any
 import os
 # import pprint
 
+def descend_obj(obj,sep='\t'):
+    """
+    Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+    """
+    if type(obj) in [h5._hl.group.Group,h5._hl.files.File]:
+        for key in obj.keys():
+            print(sep,'-',key,':',obj[key])
+            descend_obj(obj[key],sep=sep+'\t')
+    elif type(obj)==h5._hl.dataset.Dataset:
+        for key in obj.attrs.keys():
+            print(sep+'\t','-',key,':',obj.attrs[key])
+
+def h5dump(path,group='/'):
+    """
+    print HDF5 file metadata
+
+    group: you can give a specific group, defaults to the root group
+    """
+    with h5.File(path,'r') as f:
+         descend_obj(f[group])
+
 def move_groups_to_parent(file):
     with h5.File(file,'a') as f:
         parent_name = 'a1_mp'

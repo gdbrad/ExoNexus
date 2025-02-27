@@ -1,4 +1,4 @@
-channel: "a1_mp_nomix"
+channel: "a1_mp"
 nvec: 96
 ntsrc: 24
 nt: 96
@@ -11,3 +11,4 @@ mom_list:
   - "mom_0_-1_0"
   - "mom_0_0_-1"
 tsrc_avg: True
+psq: 1

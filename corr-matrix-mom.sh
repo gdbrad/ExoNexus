@@ -2,25 +2,26 @@
 #SBATCH --job-name=mom_test 
 #SBATCH --account=exncmf  
 #SBATCH --nodes=1                   
-#SBATCH --cpus-per-task=16          
+#SBATCH --cpus-per-task=32          
 #SBATCH --time=00:30:00             
-#SBATCH --output=h5-a1_mp_nomix/test-matrix%j.log        
+#SBATCH --output=h5-a1_mp_nomix/test-a1%a.log        
 #SBATCH --partition=dc-cpu-devel
 #SBATCH --array=1-2
-
-source /p/scratch/exotichadrons/exotraction/exo-env/bin/activate
 
 module load Stages/2025
 module load Python
 module load h5py
 module load GCC
 module load OpenMPI
-module load Python
 module load PyYAML
 module load sympy
 module load mpi4py
 
+export OMP_NUM_THREADS=32
 
+source /p/scratch/exotichadrons/exotraction/exo/bin/activate
+
+#SBATCH --ntasks-per-node=1 
 NUM_CONFIGS=2   # Number of configs to process per job
 NUM_VECS=96      # Number of eigenvectors
 NUM_TSRC=24      # Number of source time slices
@@ -39,7 +40,7 @@ for cfg in $(seq $START_CFG $CFG_STEP $(( START_CFG + (NUM_CONFIGS - 1) * CFG_ST
 done
 
 CFG_IDS=$(echo $CFG_IDS | tr ' ' ',')
-INI=ini/kaon.ini.yml
+INI=ini/a1mp.ini.yml
 
 echo "SLURM_ARRAY_TASK_ID: ${SLURM_ARRAY_TASK_ID}"
 echo "Start Config: ${START_CFG}"
