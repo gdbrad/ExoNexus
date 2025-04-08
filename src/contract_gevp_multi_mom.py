@@ -22,6 +22,8 @@ FLAVOR_ORDER = {'light': 0, 'strange': 1, 'charm': 2}
 
 def load_op_map(channel:str):
     '''loads a ``QuantumNum`` object from ``operator_factory`` eg. the insertion between perambulator(light,strange,or charm) and elemental
+
+    CG and subduction coeffs are applied when building the operator here, not in the correlator loop
     '''
     try:
         op_map = getattr(operator_factory, channel)
@@ -46,11 +48,14 @@ def correlator_matrix(
     cfg_id: str,
     ntsrc: int,
     nvec: int):
-    '''handles list of momenta tuples, which are contained in the elemental files as strings'''
+    '''handles list of momenta tuples, which are contained in the elemental files as strings
+    Avoids redundant momenta averaging or post-projection if the operators from ``Operator_factory`` are already subduced 
+    '''
 
     nmom = len(mom_list)
     nop = len(operators)
-    
+    # ----------------- data loading --------------------------- #
+
     # load base (light) perambulator
     peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
     peram_file = os.path.join(peram_dir, peram_filename)
@@ -74,94 +79,101 @@ def correlator_matrix(
 
     # Precompute reversed perambulators
     peram_back = {flavor: reverse_perambulator_time(peram) for flavor, peram in peram_flavors.items()}
+    # ------------------------------------------------------------------------------------------------#
 
     # initialize correlator matrix to fill with raw correlator data 
-    # this will be reshaped once all timeslices are accessed 
-    # meson_matrix = np.zeros((nmom,nop,nop,nt), dtype=np.cdouble)
-    if tsrc_avg:
-        # Only store the averaged result: (nmom, nop, nop, nt)
+    if mom_avg and tsrc_avg:
+        meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
+        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
+    elif mom_avg:
+        meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
+    elif tsrc_avg:
         meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
-        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)  # Temporary storage
+        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
     else:
-        # Store all tsrc: (nmom, nop, nop, nt)
         meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
 
     # Determine dominant flavor for file naming
     #dominant_flavor = next((f for f in ['charm', 'strange', 'light'] if f in unique_flavors), 'light')
-    h5_file = f"h5-{channel}/gevp_{channel}_{cfg_id}.h5"
+    # h5_file = f"h5-{channel}/gevp_{channel}_{cfg_id}.h5"
 
-    with h5py.File(h5_file, "w") as h5_group:
+    # with h5py.File(h5_file, "w") as h5_group:
         # momenta loop if momenta tuple is given is a list 
-        for mom_idx,mom in enumerate(mom_list):
-            for src_idx, (src_name, src_op) in enumerate(operators.items()):
-                for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
-                    # Update operator momentum
-                    # if src_op.mom != mom:
-                    #     src_op.mom = mom
-                    # if snk_op.mom != mom:
-                    #     snk_op.mom = mom
-                    
-                    # Determine forward and backward propagation based on flavor order
-                    src_flavor_weight = FLAVOR_ORDER[src_op.flavor]
-                    snk_flavor_weight = FLAVOR_ORDER[snk_op.flavor]
-                    
-                    if src_flavor_weight <= snk_flavor_weight:
-                        # Source is lighter or equal, propagates forward; sink backward
-                        fwd_flavor = src_op.flavor
-                        bkwd_flavor = snk_op.flavor
-                    else:
-                        # Sink is lighter, propagates forward; source backward
-                        fwd_flavor = snk_op.flavor
-                        bkwd_flavor = src_op.flavor
-                    for tsrc in range(ntsrc):
-                        for t in range(nt):
-                            tau = peram_flavors[fwd_flavor][tsrc, t, :, :, :, :]
-                            tau_ = peram_back[bkwd_flavor][tsrc, t, :, :, :, :]
+    irrep = next(iter(operators.values())).F
+    for mom_idx,mom in enumerate(mom_list):
+        for src_idx, (src_name, src_op) in enumerate(operators.items()):
+            for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
+                # Update operator momentum
+                # if src_op.mom != mom:
+                #     src_op.mom = mom
+                # if snk_op.mom != mom:
+                #     snk_op.mom = mom
+                
+                # Determine forward and backward propagation based on flavor order
+                src_flavor_weight = FLAVOR_ORDER[src_op.flavor]
+                snk_flavor_weight = FLAVOR_ORDER[snk_op.flavor]
+                
+                if src_flavor_weight <= snk_flavor_weight:
+                    # Source is lighter or equal, propagates forward; sink backward
+                    fwd_flavor = src_op.flavor
+                    bkwd_flavor = snk_op.flavor
+                else:
+                    # Sink is lighter, propagates forward; source backward
+                    fwd_flavor = snk_op.flavor
+                    bkwd_flavor = src_op.flavor
+                for tsrc in range(ntsrc):
+                    for t in range(nt):
+                        tau = peram_flavors[fwd_flavor][tsrc, t, :, :, :, :]
+                        tau_ = peram_back[bkwd_flavor][tsrc, t, :, :, :, :]
 
-                            if src_op.deriv is None:
-                                phi_0, _ = contract_local(meson_file, nt, nvec, src_op, t,mom)
-                            elif src_op.deriv == "nabla":
-                                phi_0, _ = contract_nabla(meson_file, nt, nvec, src_op, t,mom)
-                            elif src_op.deriv in ["B", "D"]:
-                                phi_0, _ = contract_B_D(meson_file,nt,nvec,src_op, t,mom, add=(src_op.deriv == "D"))
-                            else:
-                                continue
+                        if src_op.deriv is None:
+                            phi_0, _ = contract_local(meson_file, nt, nvec, src_op, t,mom)
+                        elif src_op.deriv == "nabla":
+                            phi_0, _ = contract_nabla(meson_file, nt, nvec, src_op, t,mom)
+                        elif src_op.deriv in ["B", "D"]:
+                            phi_0, _ = contract_B_D(meson_file,nt,nvec,src_op, t,mom, add=(src_op.deriv == "D"))
+                        else:
+                            continue
 
-                            if snk_op.deriv is None:
-                                _, phi_t = contract_local(meson_file, nt, nvec, snk_op, t ,mom)
-                            elif snk_op.deriv == "nabla":
-                                _, phi_t = contract_nabla(meson_file, nt, nvec, snk_op, t ,mom)
-                            elif snk_op.deriv in ["B", "D"]:
-                                _, phi_t = contract_B_D(meson_file,nt,nvec,snk_op, t, mom, add=(snk_op.deriv == "D"))
-                            else:
-                                continue
+                        if snk_op.deriv is None:
+                            _, phi_t = contract_local(meson_file, nt, nvec, snk_op, t ,mom)
+                        elif snk_op.deriv == "nabla":
+                            _, phi_t = contract_nabla(meson_file, nt, nvec, snk_op, t ,mom)
+                        elif snk_op.deriv in ["B", "D"]:
+                            _, phi_t = contract_B_D(meson_file,nt,nvec,snk_op, t, mom, add=(snk_op.deriv == "D"))
+                        else:
+                            continue
 
-                            print(f'Contracting {src_name}-{snk_name}, mom {mom}, tsrc {tsrc}, t {t}, '
-                                  f'forward: {fwd_flavor}, backward: {bkwd_flavor}')
+                        print(f'Contracting {src_name}-{snk_name}, mom {mom}, tsrc {tsrc}, t {t}, '
+                                f'forward: {fwd_flavor}, backward: {bkwd_flavor}')
 
-                            correlation = contract("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize="optimal")
-                            
-                            if tsrc_avg:
-                                temp_matrix[mom_idx, src_idx, snk_idx, tsrc, t] = correlation
-                            else:
-                                meson_matrix[mom_idx, src_idx, snk_idx, t] = correlation
-
-                        if not tsrc_avg:
-                            group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
-                            h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
-
-                    # Perform tsrc averaging if requested
-                    if tsrc_avg:
-                        # Apply time shifts and average over tsrc
-                        for i in range(ntsrc):
-                            temp_matrix[mom_idx, src_idx, snk_idx, i, :] = np.roll(
-                                temp_matrix[mom_idx, src_idx, snk_idx, i, :], -4 * i
-                            )
-                        meson_matrix[mom_idx, src_idx, snk_idx, :] = temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0)
+                        correlation = contract("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize="optimal")
                         
-                        # Write averaged data
-                        group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+                        if mom_avg and tsrc_avg:
+                            temp_matrix[mom_idx, src_idx, snk_idx, tsrc, t] = correlation
+                        elif mom_avg:
+                            meson_matrix[src_idx, snk_idx, t] += correlation.real / nmom
+                        elif tsrc_avg:
+                            temp_matrix[mom_idx, src_idx, snk_idx, tsrc, t] = correlation
+                        else:
+                            meson_matrix[mom_idx, src_idx, snk_idx, t] = correlation.real
+
+                    if not tsrc_avg:
+                        group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
                         h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
+
+                # Perform tsrc averaging if requested
+                if tsrc_avg:
+                    # Apply time shifts and average over tsrc
+                    for i in range(ntsrc):
+                        temp_matrix[mom_idx, src_idx, snk_idx, i, :] = np.roll(
+                            temp_matrix[mom_idx, src_idx, snk_idx, i, :], -4 * i
+                        )
+                    meson_matrix[mom_idx, src_idx, snk_idx, :] = temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0)
+                    
+                    # Write averaged data
+                    group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+                    h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
 
     print("HDF5 file successfully written with GEVP data.")
 

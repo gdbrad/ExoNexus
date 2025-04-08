@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from gamma import gamma
+from src.gamma import gamma
 import numpy as np 
 from itertools import product 
 from numpy import load 
@@ -10,7 +10,9 @@ I = np.array([[1, 0],
 IDEN = np.identity(4)
 
 """Define operator basis. We employ the same basis as arXiv:0707.4162 [hep-lat, physics:hep-ph]
-See app. B 
+See app. B
+
+should handle momentum and irrep subduction at the operator level
 
 
 """

@@ -1,8 +1,8 @@
 from opt_einsum import contract
 import numpy as np 
-import gamma
-from gamma import gamma
-from ingest_data import load_elemental
+import src.gamma
+from src.gamma import gamma
+from src.ingest_data import load_elemental
 gamma_i = [gamma[1], gamma[2], gamma[3], gamma[4]]
 
 

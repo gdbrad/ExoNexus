@@ -3,10 +3,10 @@
 #SBATCH --account=exncmf  
 #SBATCH --nodes=1                   
 #SBATCH --cpus-per-task=32          
-#SBATCH --time=24:00:00             
+#SBATCH --time=02:00:00             
 #SBATCH --output=h5-a1_mp/test-a1%a.log        
-#SBATCH --partition=dc-cpu
-#SBATCH --array=1-20
+#SBATCH --partition=dc-cpu-devel
+#SBATCH --array=1-2
 
 module load Stages/2025
 module load Python
@@ -22,7 +22,7 @@ export OMP_NUM_THREADS=32
 source /p/scratch/exotichadrons/exotraction/exo/bin/activate
 
 #SBATCH --ntasks-per-node=1 
-NUM_CONFIGS=10  # Number of configs to process per job
+NUM_CONFIGS=1  # Number of configs to process per job
 NUM_VECS=96      # Number of eigenvectors
 NUM_TSRC=24      # Number of source time slices
 CFG_STEP=10     
@@ -47,7 +47,7 @@ echo "Start Config: ${START_CFG}"
 echo "Valid Config IDs: ${CFG_IDS}"
 
 if [[ -n "$CFG_IDS" ]]; then
-    srun python3 src/contract_gevp_multi_mom.py --ini $INI --cfg_ids ${CFG_IDS} --task ${SLURM_ARRAY_TASK_ID}
+    srun python3 contract_gevp_irrep.py --ini $INI --cfg_ids ${CFG_IDS} --task ${SLURM_ARRAY_TASK_ID}
 else
     echo "No valid configurations for this job."
 fi
