@@ -4,13 +4,14 @@ import os
 import argparse
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 import gamma as gamma
+from typing import List
 
 # Constants
-NUM_VECS = 96
+NUM_VECS = 64
 NUM_TSRCS = 24
-LT = 96
+LT = 64
 BASE_PATH = os.path.abspath('/p/scratch/exotichadrons/exolaunch')
-ENS = 'gio-L32T96'
+ENS = 'eric-L32T64'
 
 def get_file_path(directory, filename, cfg_id):
     """Construct file path and check if it exists."""
@@ -20,9 +21,9 @@ def get_file_path(directory, filename, cfg_id):
         return None
     return full_path
 
-def process_configuration(cfg_id, dirs, h5_group, flavor_content, tsrc_avg=True):
-    """Process one configuration, optionally averaging over tsrc."""
-    # File templates for a single configuration
+def process_configuration(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True):
+    """Process one configuration for given flavor systems, compute di-meson correlator with direct and crossing terms."""
+    # file naming conventions for a single configuration
     file_specs = {
         'light': (dirs['light'], f"peram_{NUM_VECS}_cfg{{cfg_id}}.h5"),  # Light perambulator
         'meson': (dirs['meson'], f"meson-{NUM_VECS}_cfg{{cfg_id}}.h5"),
@@ -30,96 +31,179 @@ def process_configuration(cfg_id, dirs, h5_group, flavor_content, tsrc_avg=True)
         'charm': (dirs['charm'], f"peram_charm_{NUM_VECS}_cfg{{cfg_id}}.h5")
     }
 
-    # Get file paths
     paths = {key: get_file_path(dir, template, cfg_id) for key, (dir, template) in file_specs.items()}
     if not paths['light'] or not paths['meson']:
         return False
 
     print(f"Reading light perambulator file: {paths['light']}")
+    if paths['charm']:
+        print(f"Reading charm perambulator file: {paths['charm']}")
     print(f"Reading meson elementals file: {paths['meson']}")
 
-    # Load data
+    # load common data
     meson_elemental = load_elemental(paths['meson'], LT, NUM_VECS, mom='mom_0_0_0', disp='disp')
     peram_strange = load_peram(paths['strange'], LT, NUM_VECS, NUM_TSRCS) if paths['strange'] else None
     peram_charm = load_peram(paths['charm'], LT, NUM_VECS, NUM_TSRCS) if paths['charm'] else None
     peram_light = load_peram(paths['light'], LT, NUM_VECS, NUM_TSRCS)  # Explicitly light
 
-    # Flavor-specific perambulator logic
+    # flavor combinations for perambulators
     flavor_map = {
         'light_strange': (peram_light, peram_strange, paths['light'], paths['strange']),
+        'light_light': (peram_light, peram_light, paths['light'], paths['light']),
         'light_charm': (peram_light, peram_charm, paths['light'], paths['charm']),
         'charm_strange': (peram_charm, peram_strange, paths['charm'], paths['strange'])
     }
 
-    if flavor_content in flavor_map:
+    # store the correlators and perambulator data for each flavor system
+    """
+    direct and crossing graph topology for the [15] must be subtracted 
+        to account for all possible Wick contraction topologies for a di-meson correlator eg. [15] or [6], need to compute these contributions separately for each flavor system ->>> form the final di-meson correlator as the difference between the direct and crossing terms (i.e., direct - crossing)
+        Direct:
+        Meson A: <phi_t_A * tau_A * phi_0_A * tau_A_back>
+        Meson B: <phi_t_B * tau_B * phi_0_B * tau_B_back>
+        Di-meson direct: C_A(t) * C_B(t), where C_A and C_B are the individual meson correlators.
+        Crossing:
+        <phi_t_A * tau_A * phi_0_B * tau_B_back> * <phi_t_B * tau_B * phi_0_A * tau_A_back>
+    """
+    correlators = {}
+    peram_data = {}
+    for idx, flavor_content in enumerate(flavor_contents, 1):  # Start index at 1 for meson1, meson2
+        if flavor_content not in flavor_map:
+            print(f"Flavor '{flavor_content}' not recognized, defaulting to light_light.")
+            flavor_content = 'light_light'
+
         peram, peram_back_data, peram_file, peram_back_file = flavor_map[flavor_content]
         if peram_back_data is None:
             print(f"Required {flavor_content} back perambulator file missing: {peram_back_file}. Skipping.")
             return False
         peram_back = reverse_perambulator_time(peram_back_data)
-        print(f"Flavor '{flavor_content}':")
+        print(f"Flavor '{flavor_content}' (meson {idx}):")
         print(f"  Perambulator loaded: {peram_file}")
         print(f"  Reverse perambulator loaded: {peram_back_file}")
-    else:
-        peram = peram_light
-        peram_back = reverse_perambulator_time(peram_light)  # Default to light
-        print("Flavor not specified or unrecognized, defaulting to light:")
-        print(f"  Perambulator loaded: {paths['light']}")
-        print(f"  Reverse perambulator loaded: {paths['light']}")
 
-    # Contraction with source averaging
-    meson_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)  # Store tsrc x Lt data
-    phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0])
+        # store perambulator data for computation of crossing terms
+        peram_data[flavor_content] = (peram, peram_back)
 
-    for tsrc in range(NUM_TSRCS):
-        for t in range(LT):
-            phi_t = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[t], optimize='optimal')
-            tau = peram[tsrc, t, :, :, :, :]
-            tau_ = peram_back[tsrc, t, :, :, :, :]
-            meson_data[tsrc, t] = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize='optimal')
+        # direct diagram
+        meson_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)  # Store tsrc x Lt data
+        phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0])
 
-    meson_data = meson_data.real
-
-    # Source averaging
-    if tsrc_avg:
         for tsrc in range(NUM_TSRCS):
-            meson_data[tsrc] = np.roll(meson_data[tsrc], -4 * tsrc)  # Shift each tsrc
-        meson_avg = meson_data.mean(axis=0)  # Average over tsrc
-        h5_group.create_dataset(f'cfg_{cfg_id}_tsrc_avg', data=meson_avg)
-    else:
-        for tsrc in range(NUM_TSRCS):
-            h5_group.create_dataset(f'tsrc_{tsrc}/cfg_{cfg_id}', data=meson_data[tsrc])
+            for t in range(LT):
+                phi_t = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[t], optimize='optimal')
+                tau = peram[tsrc, t, :, :, :, :]
+                tau_ = peram_back[tsrc, t, :, :, :, :]
+                meson_data[tsrc, t] = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize='optimal')
 
-    print(f"Cfg {cfg_id} processed successfully{' with tsrc averaging' if tsrc_avg else ''}.")
+        meson_data = meson_data.real
+
+        # tsrc avg
+        key_prefix = f'meson{idx}_{flavor_content}'  #  assign unique prefix for each meson
+        if tsrc_avg:
+            for tsrc in range(NUM_TSRCS):
+                meson_data[tsrc] = np.roll(meson_data[tsrc], -4 * tsrc)  # shift tsrc to origin to get symmetric corr 
+            meson_avg = meson_data.mean(axis=0)  # do tsrc avg here 
+            correlators[flavor_content] = meson_avg
+            h5_group.create_dataset(f'{key_prefix}/cfg_{cfg_id}_tsrc_avg', data=meson_avg)
+        else:
+            correlators[flavor_content] = meson_data
+            for tsrc in range(NUM_TSRCS):
+                h5_group.create_dataset(f'{key_prefix}/tsrc_{tsrc}/cfg_{cfg_id}', data=meson_data[tsrc])
+
+        print(f"Correlator for {flavor_content} (meson {idx}) computed successfully{' with tsrc averaging' if tsrc_avg else ''}.")
+
+    # di-meson correlator if multiple flavors are provided eg. light-charm, light-light
+    if len(flavor_contents) > 1:
+        flavor1, flavor2 = flavor_contents
+        group_name = f'{flavor1}_{flavor2}'
+
+        # direct di-meson correlator: C1(t) * C2(t)
+        direct_correlator = np.prod([correlators[flavor] for flavor in flavor_contents], axis=0)
+
+        # init crossing di-meson correlator, swap backward propagating perambulators
+        crossing_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)
+        peram1, peram_back1 = peram_data[flavor1]
+        peram2, peram_back2 = peram_data[flavor2]
+
+        # crossing term: meson1 uses peram1 and peram_back2, meson2 uses peram2 and peram_back1
+        for tsrc in range(NUM_TSRCS):
+            for t in range(LT):
+                phi_t = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[t], optimize='optimal')
+                phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0])
+
+                # meson1: forward = flavor1, backward = flavor2
+                tau1 = peram1[tsrc, t, :, :, :, :]
+                tau1_back = peram_back2[tsrc, t, :, :, :, :]
+                meson1_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau1, phi_0, tau1_back, optimize='optimal')
+
+                # meson2: forward = flavor2, backward = flavor1
+                tau2 = peram2[tsrc, t, :, :, :, :]
+                tau2_back = peram_back1[tsrc, t, :, :, :, :]
+                meson2_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau2, phi_0, tau2_back, optimize='optimal')
+
+                crossing_data[tsrc, t] = meson1_cross * meson2_cross
+
+        crossing_data = crossing_data.real
+
+        # tsrc averaging for crossing term
+        if tsrc_avg:
+            for tsrc in range(NUM_TSRCS):
+                crossing_data[tsrc] = np.roll(crossing_data[tsrc], -4 * tsrc)
+            crossing_avg = crossing_data.mean(axis=0)
+        else:
+            crossing_avg = crossing_data
+
+        # final di-meson correlator
+        final_correlator = direct_correlator + crossing_avg
+
+        if tsrc_avg:
+            h5_group.create_dataset(f'{group_name}/direct/cfg_{cfg_id}_tsrc_avg', data=direct_correlator)
+            h5_group.create_dataset(f'{group_name}/crossing/cfg_{cfg_id}_tsrc_avg', data=crossing_avg)
+            h5_group.create_dataset(f'{group_name}/di_meson/cfg_{cfg_id}_tsrc_avg', data=final_correlator)
+        else:
+            for tsrc in range(NUM_TSRCS):
+                tsrc_direct = np.prod([correlators[flavor][tsrc] for flavor in flavor_contents], axis=0)
+                h5_group.create_dataset(f'{group_name}/direct/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct)
+                h5_group.create_dataset(f'{group_name}/crossing/tsrc_{tsrc}/cfg_{cfg_id}', data=crossing_data[tsrc])
+                h5_group.create_dataset(f'{group_name}/di_meson/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct - crossing_data[tsrc])
+
+        print(f"Di-meson correlator for {group_name} computed: direct - crossing saved.")
+
+    print(f"Cfg {cfg_id} processed successfully.")
     return True
 
-def main(cfg_id, flavor_content, task_id):
-    """Process a single configuration and save results."""
+def main(cfg_id: int, flavor_contents: List[str], task_id: int):
+    """Process a single configuration for one or two flavor systems."""
     dirs = {
-        'light': os.path.join(BASE_PATH, ENS, 'perams_sdb', f'numvec{NUM_VECS}', f'tsrc-{NUM_TSRCS}'),
-        'meson': os.path.join(BASE_PATH, ENS, 'meson_sdb', f'numvec{NUM_VECS}','h5'),
+        'light': os.path.join(BASE_PATH, ENS, 'perams_sdb', f'numvec{NUM_VECS}'),
+        'meson': os.path.join(BASE_PATH, ENS, 'meson_sdb', f'numvec{NUM_VECS}'),
         'strange': os.path.join(BASE_PATH, ENS, 'perams_strange_sdb'),
         'charm': os.path.join(BASE_PATH, ENS, 'perams_charm_sdb', f'numvec{NUM_VECS}')
     }
 
-    h5_output_file = f'{flavor_content}_2pt_nvec_{NUM_VECS}_tsrc_{NUM_TSRCS}_task{task_id}.h5'
+    # output file name based on flavor combination
+    group_name = '_'.join(flavor_contents) if len(flavor_contents) > 1 else flavor_contents[0]
+    # FIX THIS 
+    h5_output_file = f'Dpi6_tsrc_{group_name}_2pt_nvec_{NUM_VECS}_tsrc_{NUM_TSRCS}_task{task_id}.h5'
+
     with h5py.File(h5_output_file, "w") as h5f:
-        # Use flavor_content in group name, default to 'light' if None or unrecognized
-        group_name = f"{flavor_content if flavor_content in ['light_strange', 'light_charm', 'charm_strange'] else 'light'}_000"
-        h5_group = h5f.create_group(group_name)
+        h5_group = h5f.create_group(f"{group_name}_000")
         try:
-            if not process_configuration(cfg_id, dirs, h5_group, flavor_content):
+            if not process_configuration(cfg_id, dirs, h5_group, flavor_contents):
                 print(f"Skipping configuration {cfg_id} due to missing files.")
         except FileNotFoundError as e:
             print(f"Error: {e}")
 
-        print(f"Configuration {cfg_id} processed & saved to {h5_output_file} under group '{group_name}'.")
+        print(f"Configuration {cfg_id} processed & saved to {h5_output_file} under group '{group_name}_000'.")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Process a single peram and meson file with tsrc averaging.")
+    parser = argparse.ArgumentParser(description="Process peram and meson files for one or two flavor systems.")
     parser.add_argument('--cfg_id', type=int, required=True, help="Single configuration ID to process")
-    parser.add_argument('--flavor', type=str, help="Flavor content (e.g., light_strange)")
+    parser.add_argument('--flavor', type=str, required=True, help="Flavor content(s), comma-separated (e.g., light_charm,light_light)")
     parser.add_argument('--task', type=int, required=True, help="Task ID for this run")
 
     args = parser.parse_args()
-    main(cfg_id=args.cfg_id, flavor_content=args.flavor, task_id=args.task)
+    flavor_contents = args.flavor.split(',')
+    if len(flavor_contents) > 2:
+        raise ValueError("At most two flavor contents are supported (e.g., light_charm,light_light).")
+    main(cfg_id=args.cfg_id, flavor_contents=flavor_contents, task_id=args.task)

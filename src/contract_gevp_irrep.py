@@ -1,4 +1,3 @@
-# contract_routines.py
 import numpy as np
 import os
 from opt_einsum import contract as oe_contract
@@ -7,17 +6,31 @@ import argparse
 import time
 import yaml
 import sys
-from typing import Iterable,List,Dict
+from typing import Iterable, List, Dict
 from gamma import gamma
-import src.operator_factory as operator_factory
-from src.operator_factory import QuantumNum
-from src.ingest_data import load_elemental, load_peram, reverse_perambulator_time
-from src.contract_routines import *
-def load_op_map(channel:str):
-    '''loads a ``QuantumNum`` object from ``operator_factory`` eg. the insertion between perambulator(light,strange,or charm) and elemental
+import operator_factory as operator_factory
+from operator_factory import QuantumNum
+from ingest_data import load_elemental, load_peram, reverse_perambulator_time
+from contract_routines import *
 
-    CG and subduction coeffs are applied when building the operator here, not in the correlator loop
-    '''
+"""
+The fundamental objects that will be coagulated into a two-point correlator are: 
+- gamma matrix structure 
+- covariant derivative operator eg. displacement operator. This is identity for local operators 
+- projection operator for non-zero momentum, for zero total momentum this is the identity 
+
+So for a specified operator at the sink we must set the 1. gamma index and 2. derivative index 
+To spell out the logic, we 
+1. start with a "bare" operator using the ``QuantumNum`` dataclass
+2. apply some functor to the OperatorBare -> OperatorDisplacement, where the arrow is some displacement operator 
+
+3. 
+
+
+"""
+
+def load_op_map(channel: str):
+    """Loads a QuantumNum object from operator_factory."""
     try:
         op_map = getattr(operator_factory, channel)
         if not isinstance(op_map, dict):
@@ -25,8 +38,7 @@ def load_op_map(channel:str):
         return op_map
     except AttributeError:
         raise AttributeError(f"'{channel}' not found in operator_factory")
-
-
+    
 
 def correlator_matrix(
     operators: Dict[str, 'QuantumNum'],
@@ -45,19 +57,19 @@ def correlator_matrix(
     h5_group: 'h5py.Group',
     irrep: str = 'A1'  # Default to A1, change to A2 for pions at p=1
 ) -> bool:
-    
+
     FLAVOR_ORDER = {'light': 0, 'strange': 1, 'charm': 2}
     nmom = len(mom_list)
     nop = len(operators)
     
     # A2 projection coefficients for C4v (simplified for mom_list averaging)
-    # For p=(1,0,0), we project operator symmetry, but if averaging, adjust per mom
     A2_COEFFS = {
         '1 0 0': 1.0,  
         '0 1 0': -1.0, 
         '0 0 1': -1.0 
     } if irrep == 'A2' else {mom: 1.0 for mom in mom_list}  # A1 is symmetric
     
+    # Check and load files
     peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
     peram_file = os.path.join(peram_dir, peram_filename)
     if not os.path.isfile(peram_file):
@@ -88,28 +100,25 @@ def correlator_matrix(
 
     peram_back = {flavor: reverse_perambulator_time(peram) for flavor, peram in peram_flavors.items()}
 
+    # Initialize output array based on averaging options
     if mom_avg and tsrc_avg:
         meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
-        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
     elif mom_avg:
-        meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nop, nop, ntsrc, nt), dtype=np.cdouble)
     elif tsrc_avg:
         meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
-        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
     else:
-        meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
 
     print(f"Processing cfg {cfg_id}: {peram_file}, {meson_file}, irrep {irrep}")
     
+    # Temporary storage for contractions
+    temp_matrix = np.zeros((ntsrc, nt), dtype=np.cdouble)
+
     for mom_idx, mom in enumerate(mom_list):
         coeff = A2_COEFFS.get(mom, 1.0)  # Default to 1.0 if not specified
         for src_idx, (src_name, src_op) in enumerate(operators.items()):
             for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
-                # if src_op.mom != mom:
-                #     src_op.mom = mom
-                # if snk_op.mom != mom:
-                #     snk_op.mom = mom
-                
                 src_flavor_weight = FLAVOR_ORDER.get(src_op.flavor, 0)
                 snk_flavor_weight = FLAVOR_ORDER.get(snk_op.flavor, 0)
                 forward_flavor = src_op.flavor if src_flavor_weight <= snk_flavor_weight else snk_op.flavor
@@ -125,93 +134,65 @@ def correlator_matrix(
                         tau_ = peram_back[backward_flavor][tsrc, t, :, :, :, :]
 
                         if src_op.deriv is None:
-                            phi_0, _ = contract_local(meson_file, nt, nvec, src_op, t,mom)
+                            phi_0, _ = contract_local(meson_file, nt, nvec, src_op, t, mom)
                         elif src_op.deriv == "nabla":
-                            phi_0, _ = contract_nabla(meson_file, nt, nvec, src_op, t,mom)
+                            phi_0, _ = contract_nabla(meson_file, nt, nvec, src_op, t, mom)
                         elif src_op.deriv in ["B", "D"]:
-                            phi_0, _ = contract_B_D(meson_file,nt,nvec,src_op, t,mom, add=(src_op.deriv == "D"))
+                            phi_0, _ = contract_B_D(meson_file, nt, nvec, src_op, t, mom, add=(src_op.deriv == "D"))
                         else:
                             continue
 
                         if snk_op.deriv is None:
-                            _, phi_t = contract_local(meson_file, nt, nvec, snk_op, t ,mom)
+                            _, phi_t = contract_local(meson_file, nt, nvec, snk_op, t, mom)
                         elif snk_op.deriv == "nabla":
-                            _, phi_t = contract_nabla(meson_file, nt, nvec, snk_op, t ,mom)
+                            _, phi_t = contract_nabla(meson_file, nt, nvec, snk_op, t, mom)
                         elif snk_op.deriv in ["B", "D"]:
-                            _, phi_t = contract_B_D(meson_file,nt,nvec,snk_op, t, mom, add=(snk_op.deriv == "D"))
+                            _, phi_t = contract_B_D(meson_file, nt, nvec, snk_op, t, mom, add=(snk_op.deriv == "D"))
                         else:
                             continue
 
                         print(f'Contracting {src_name}-{snk_name}, mom {mom}, tsrc {tsrc}, t {t}, '
-                                f'forward: {forward_flavor}, backward: {backward_flavor}')
-
-                        # correlation = contract("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize="optimal")
+                              f'forward: {forward_flavor}, backward: {backward_flavor}')
 
                         correlation = oe_contract("ijab,jkbc,klcd,lida", phi_t, tau, phi_0, tau_, optimize='optimal')
                         correlation *= coeff  # Apply A2 projection coefficient
-                        
-                        if mom_avg and tsrc_avg:
-                            temp_matrix[mom_idx, src_idx, snk_idx, tsrc, t] = correlation
-                        elif mom_avg:
-                            meson_matrix[src_idx, snk_idx, t] += correlation.real / nmom
-                        elif tsrc_avg:
-                            temp_matrix[mom_idx, src_idx, snk_idx, tsrc, t] = correlation
-                        else:
-                            meson_matrix[mom_idx, src_idx, snk_idx, t] = correlation.real
+                        temp_matrix[tsrc, t] = correlation.real
 
-                    if not (mom_avg or tsrc_avg):
-                        group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
-                        h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
-                    elif mom_avg and not tsrc_avg:
-                        group_name = f"/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
-                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx, :])
-
-                if tsrc_avg:
-                    for i in range(ntsrc):
-                        temp_matrix[mom_idx, src_idx, snk_idx, i, :] = np.roll(
-                            temp_matrix[mom_idx, src_idx, snk_idx, i, :], -4 * i
-                        )
-                    if mom_avg:
-                        meson_matrix[src_idx, snk_idx, :] += temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0).real / nmom
+                    # Store results based on averaging options
+                    if mom_avg and tsrc_avg:
+                        meson_matrix[src_idx, snk_idx] += temp_matrix.mean(axis=0) / nmom
+                    elif mom_avg:
+                        meson_matrix[src_idx, snk_idx, tsrc] = temp_matrix.mean(axis=0)
+                    elif tsrc_avg:
+                        temp_matrix[tsrc] = np.roll(temp_matrix[tsrc], -4 * tsrc)
+                        meson_matrix[mom_idx, src_idx, snk_idx] = temp_matrix.mean(axis=0)
                     else:
-                        meson_matrix[mom_idx, src_idx, snk_idx, :] = temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0).real
-                        group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
-                        h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
+                        meson_matrix[mom_idx, src_idx, snk_idx, tsrc] = temp_matrix[tsrc]
 
-    if mom_avg and tsrc_avg:
-        group_name = f"/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
-        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx, :])
+    # Write data to HDF5
+    for src_idx, (src_name, src_op) in enumerate(operators.items()):
+        for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
+            if mom_avg and tsrc_avg:
+                dataset_name = f"{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+                h5_group.create_dataset(dataset_name, data=meson_matrix[src_idx, snk_idx])
+            elif mom_avg:
+                for tsrc in range(ntsrc):
+                    dataset_name = f"{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
+                    h5_group.create_dataset(dataset_name, data=meson_matrix[src_idx, snk_idx, tsrc])
+            elif tsrc_avg:
+                for mom_idx, mom in enumerate(mom_list):
+                    dataset_name = f"mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+                    h5_group.create_dataset(dataset_name, data=meson_matrix[mom_idx, src_idx, snk_idx])
+            else:
+                for mom_idx, mom in enumerate(mom_list):
+                    for tsrc in range(ntsrc):
+                        dataset_name = f"mom_{mom}/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
+                        h5_group.create_dataset(dataset_name, data=meson_matrix[mom_idx, src_idx, snk_idx, tsrc])
 
     print(f"Cfg {cfg_id} processed successfully{' (mom averaged)' if mom_avg else ''}{' (tsrc averaged)' if tsrc_avg else ''}, irrep {irrep}.")
     return True
 
-from dataclasses import dataclass
-from typing import Optional, Union, List, Dict
-import numpy as np
-import os
-import yaml
-import argparse
-
-@dataclass
-class QuantumNum:
-    name: str
-    had: int
-    flavor: str
-    twoI: int
-    S: int
-    P: int
-    C: int
-    gamma: Union[str, List[str]]
-    gamma_i: bool
-    deriv: Optional[str]
-    mom: str
-
-FLAVOR_ORDER = {'light': 0, 'strange': 1, 'charm': 2}
-
-def main(in_file,cfg_ids, task_id: int) -> None:
-    import h5py
-
-    # ini_file = 'config.yaml'
+def main(in_file, cfg_ids, task_id: int) -> None:
     if os.path.exists(in_file):
         with open(in_file, 'r') as f:
             ini = yaml.safe_load(f)
@@ -225,7 +206,9 @@ def main(in_file,cfg_ids, task_id: int) -> None:
             'mom_list': ['1 0 0', '0 1 0', '0 0 1'],
             'tsrc_avg': False,
             'mom_avg': False,
-            'irrep': 'A2'
+            'irrep': 'A2',
+            'psq': '000',
+            'ens': 'gio-L32T96'
         }
 
     channel = ini['channel']
@@ -237,13 +220,17 @@ def main(in_file,cfg_ids, task_id: int) -> None:
     tsrc_avg = ini.get('tsrc_avg', True)
     mom_avg = ini.get('mom_avg', True)
     irrep = ini.get('irrep', 'A2')
-    psq = ini['psq']
-    ens = ini['ens']
+    psq = ini.get('psq', '000')
+    ens = ini.get('ens', 'gio-L32T96')
 
-    peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}', f'tsrc-{ntsrc}')
+    if ens == 'b3.6_ms0.25_mud-0.013_s32t64':
+        peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}')
+    else:
+        peram_dir = os.path.join(h5_path, 'perams_sdb', f'numvec{nvec}', f'tsrc-{ntsrc}')
+
     meson_dir = os.path.join(h5_path, 'meson_sdb', f'numvec{nvec}')
     peram_strange_dir = os.path.join(h5_path, 'perams_strange_sdb')
-    peram_charm_dir = os.path.join(h5_path, 'perams_charm_sdb',f'numvec{nvec}')
+    peram_charm_dir = os.path.join(h5_path, 'perams_charm_sdb', f'numvec{nvec}')
 
     operators = load_op_map(channel)
 
@@ -282,5 +269,5 @@ if __name__ == '__main__':
     parser.add_argument('--cfg_ids', type=str, required=True, help="Comma-separated list of config IDs")
     parser.add_argument('--task', type=int, required=True, help="SLURM array task ID")
     args = parser.parse_args()
-    cfg_ids =  [int(cfg) for cfg in args.cfg_ids.split(',')]
-    main(args.ini,cfg_ids=cfg_ids, task_id=args.task)
+    cfg_ids = [int(cfg) for cfg in args.cfg_ids.split(',')]
+    main(args.ini, cfg_ids=cfg_ids, task_id=args.task)

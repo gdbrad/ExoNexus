@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from src.gamma import gamma
+from gamma import gamma
 import numpy as np 
 from itertools import product 
 from numpy import load 
@@ -14,13 +14,15 @@ See app. B
 
 should handle momentum and irrep subduction at the operator level
 
+The objects that inherit ``QuantumNum" are devoid of any insertion yet eg. gamma or displacement structure, these just point to the flavor of perambulator that should be called at the source and sink. The insertion and derivative operator should result from parsing of the ``str`` of operator name 
+
 
 """
 @dataclass
 class QuantumNum:
     '''
     Houses all operator information into mom/disp/gamma structure
-    An insertion requires gamma structure, derivative(disp) and a projection name corresponding to a SU2 CG coeff -> subduction coeff, that is, if the momentum tuple or list of tuples provided is non-zero
+    An insertion requires gamma structure, derivative(disp) and a projection name corresponding to a SU2 CG coeff -> subduction coeff, that is, if the momentum tuple or list of tuples provided is non-zero. Flavor is a single ``str" value as the operator keys correspond to a src or snk operator, the same operator can be both at the src and snk. 
 
     gamma: single or list 
     disp: null vector, 1-tuple, 2-tuple -> displacement three vector; apply covariant derivative operator in a specified spatial direction 
@@ -59,7 +61,22 @@ def get_dim_channel(channel:dict):
 #     '''extract projected operator coefficients'''
 #     ops_map = {}
 
-#     return  
+#     return 
+# 
+
+"""interpolating operators for Dpi and D*pi meson
+We must tie together a light and charm perambulator with some gamma structure and projection operator for non-zero momentum, so we will have two sets of fwd/backward perambulators and 4 elementals 
+
+"""
+
+a1_mp_nomix_charm = {
+    "D_2": QuantumNum(name='D_2',had=1, F="A1", flavor='charm',twoI=1, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
+    "pion": QuantumNum(name='pion',had=1, F="A1",flavor='light',twoI=1,S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None),
+}
+    
+
+
+
 
 
 
@@ -94,7 +111,8 @@ a1_mp_strange = {
     "b_1xNABLA_A1": QuantumNum(name='b_1xB_A1',had=1, F="A1", flavor='strange',twoI=1, S=0, P=-1, C=1, gamma=gamma[4]@gamma[5],gamma_i=True,deriv="nabla"),
     "rhoxB_A1": QuantumNum(name='rhoxB_A1',had=1, F="A1", flavor='strange',twoI=1, S=0, P=-1, C=1, gamma=IDEN,gamma_i=True,deriv="B"),
 }
-    
+
+
 # }
 
 # light_isovector = {
