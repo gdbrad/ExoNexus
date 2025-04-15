@@ -18,6 +18,6 @@ popd
 pushd $BUILD_DIR/$PKG
 cp -r $SOURCE_DIR/$PKG/* .
 export CFLAGS="$CFLAGS -fPIC"
-make -j $(nproc) lib install PREFIX=$INSTALL_DIR/$PKG
+make -j 16 lib install PREFIX=$INSTALL_DIR/$PKG
 cp lib/libprimme.a $INSTALL_DIR/$PKG/lib
 popd

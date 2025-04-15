@@ -1,6 +1,6 @@
 #!/bin/bash
 ## MODULES
-#module --force purge
+module --force purge
 module load Stages/2025 GCC/13.3.0
 module load OpenMPI
 module load MPI-settings/CUDA
@@ -10,6 +10,16 @@ module load HDF5
 module load GMP
 module load Python
 module load OpenBLAS
+
+moudle list 
+
+QMP=qmp
+QDP=qdpxx
+QUDA=quda
+CHROMA=chroma
+LALIBE=lalibe
+H5=ON
+
 ## COMPILE ENV
 export GPU_ARCH=sm_80
 export CC=mpicc

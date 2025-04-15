@@ -35,6 +35,6 @@ $CMAKE -DCMAKE_C_FLAGS="-march=native -fopenmp -fPIC -O2 -DH5_USE_110_API"      
         -DChroma_ENABLE_PRIMME=ON                                                    \
         $CMAKE_EXTRA_FLAGS                                                           \
         $SOURCE_DIR/$PKG
-$CMAKE --build . --parallel 24
+$CMAKE --build . --parallel 16
 $CMAKE --install .
 popd

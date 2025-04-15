@@ -19,5 +19,5 @@ pushd $BUILD_DIR/$PKG
 cp -r $SOURCE_DIR/$PKG/* .
 export CFLAGS="$CFLAGS -fPIC"
 export CXXFLAGS="$CXXFLAGS -fPIC"
-make -j $(nproc) install_cuda PREFIX=$INSTALL_DIR/$PKG 
+make -j 16 install_cuda PREFIX=$INSTALL_DIR/$PKG 
 popd
