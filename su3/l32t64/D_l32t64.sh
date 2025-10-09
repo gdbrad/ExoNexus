@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=pi_meson 
+#SBATCH --job-name=Dpi_timing 
 #SBATCH --account=exncmf  
 #SBATCH --nodes=1                   
 #SBATCH --cpus-per-task=32          
-#SBATCH --time=00:30:00             
+#SBATCH --time=01:00:00             
 #SBATCH --output=D_all_%a.log        
 #SBATCH --partition=dc-cpu-devel
-#SBATCH --array=1-2
+
 
 module load Stages/2025 GCCcore/.13.3.0
 module load Python/3.12.3
@@ -22,11 +22,11 @@ export OMP_NUM_THREADS=32
 source /p/scratch/exotichadrons/exotraction/exo/bin/activate
 
 #SBATCH --ntasks-per-node=1 
-NUM_CONFIGS=2  
+NUM_CONFIGS=8  
 NUM_VECS=64    
 NUM_TSRC=24    
 CFG_STEP=50     
-START_CFG=$(( 400 + (SLURM_ARRAY_TASK_ID - 1) * NUM_CONFIGS * CFG_STEP ))
+START_CFG=$(( 500 + (SLURM_ARRAY_TASK_ID - 1) * NUM_CONFIGS * CFG_STEP ))
 
 INVALID_CFGS="1991"
 
@@ -47,7 +47,11 @@ CFG_ID=${CFG_IDS[$SLURM_ARRAY_TASK_ID - 1]}
 
 if [[ -n "$CFG_ID" ]]; then
     echo "Running for cfg_id: ${CFG_ID}"
-    srun python3 src/two_pt_corr.py --cfg_id ${CFG_ID} --flavor light_charm,light_light --task ${SLURM_ARRAY_TASK_ID}
+    srun python3 ../../src/two_pt_corr.py --cfg_id 500 --flavor light_charm,light_light --nvecs 64 --lt 64 --ens eric-L32T64 --ntsrc 24 
+    srun python3 ../../src/two_pt_corr.py --cfg_id 550 --flavor light_charm,light_light --nvecs 64 --lt 64 --ens eric-L32T64 --ntsrc 24  
+    srun python3 ../../src/two_pt_corr.py --cfg_id 600 --flavor light_charm,light_light --nvecs 64 --lt 64 --ens eric-L32T64 --ntsrc 24 
+    srun python3 ../../src/two_pt_corr.py --cfg_id 650 --flavor light_charm,light_light --nvecs 64 --lt 64 --ens eric-L32T64 --ntsrc 24
+    srun python3 ../../src/two_pt_corr.py --cfg_id 700 --flavor light_charm,light_light --nvecs 64 --lt 64 --ens eric-L32T64 --ntsrc 24
 else
     echo "No valid configuration for this job."
     exit 1

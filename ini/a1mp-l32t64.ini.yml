@@ -1,0 +1,11 @@
+channel: "a1_mp_nomix"
+nvec: 96
+ntsrc: 24
+nt: 96
+h5_base_path: "/p/scratch/exotichadrons/exolaunch"
+mom_list:
+  - "mom_1_0_0"
+  - "mom_0_1_0"
+tsrc_avg: True
+psq: 1
+mom_avg: True

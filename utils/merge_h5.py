@@ -20,7 +20,7 @@ def merge_h5_files(input_files, output_file):
 
     with h5py.File(output_file, 'w') as out_f:
         for h5_file in input_files:
-            cfg_id = int(os.path.basename(h5_file).split('task')[-1].replace('.h5', ''))  # Extract cfg ID from filename
+            cfg_id = int(os.path.basename(h5_file).split('_')[1].replace('cfg', ''))  # Extract cfg ID from filename
 
             with h5py.File(h5_file, 'r') as in_f:
                 copy_and_store_groups(in_f, out_f, cfg_id)
@@ -49,9 +49,9 @@ def copy_and_store_groups(in_f, out_f, cfg_id, path="/"):
         elif isinstance(in_obj, h5py.Dataset):
             real_data = in_obj[()]
 
-            if real_data.shape[-1] != 96:
-                print(f"Warning: Unexpected dataset shape {real_data.shape} in {out_path}, skipping.")
-                return
+            # if real_data.shape[-1] != 96:
+            #     print(f"Warning: Unexpected dataset shape {real_data.shape} in {out_path}, skipping.")
+            #     return
             
             cfg_dataset_name = f"{out_path}/cfg{cfg_id}"
             if cfg_dataset_name not in out_f:

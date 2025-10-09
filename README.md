@@ -4,7 +4,10 @@ https://arxiv.org/pdf/hep-lat/0210030
 http://arxiv.org/abs/0707.4162
 
 ## Running contractions on JURECA 
-create a yaml input file see `a1mp.ini.yml` for an example 
+create a yaml input file see `a1mp.ini.yml` for an example. 
+
+Run ``exotract.py --ini_file {INI_FILE} --check{Y/N}`` which will generate a batch script and create a new directory for that run , settting check will not launch the script. If not explicity given, the script will launch and then merge the output h5 files (if the run was successful). 
+
 modify the slurm batch script see `slurm-test.sh` for example
 `sbatch slurm-test.sh` 
 

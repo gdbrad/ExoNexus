@@ -53,8 +53,7 @@ class QuantumNum:
     C: int      
     gamma: str  
     gamma_i: bool 
-    deriv: str
-    mom: str 
+    deriv: str 
 
 def get_dim_channel(channel:dict): 
     dim = sum(map(len,channel.values()))
@@ -69,22 +68,23 @@ def get_dim_channel(channel:dict):
 #     return 
 # 
 
+
+
 """interpolating operators for Dpi and D*pi meson
 We must tie together a light and charm perambulator with some gamma structure and projection operator for non-zero momentum, so we will have two sets of fwd/backward perambulators and 4 elementals 
 
 """
 
-a1_p_dpi_nomix = {
-    "pion_2": QuantumNum(name='pion_2',had=1, F="A1", flavor='light',twoI=1, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
-    "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1",flavor='light', twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B"),
-   }
-
-
-
 a1_mp_nomix_charm = {
     "D_2": QuantumNum(name='D_2',had=1, F="A1", flavor='charm',twoI=1, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
     "pion": QuantumNum(name='pion',had=1, F="A1",flavor='light',twoI=1,S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None),
 }
+    
+
+
+
+
+
 
 ''' construct interpolators for 4 J^PC values '''
 # this is test case see charmonium spectrum paper by hadspec 
