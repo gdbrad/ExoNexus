@@ -3,6 +3,7 @@ from gamma import gamma
 import numpy as np 
 from itertools import product 
 from numpy import load 
+from collections import List 
 
 # mom= 'mom_0_0_0'
 I = np.array([[1, 0],
@@ -56,6 +57,30 @@ class QuantumNum:
     deriv: str
     mom: str 
 
+class MHICollection:
+    '''collect multiple two-hadron correlators together in a matrix'''
+
+
+
+
+class MHI(List[List[QuantumNum]]):
+    '''construct multi-hadron operators out of single hadron operators using nested lists of `QuantumNum` objects '''
+
+    pair_name: str
+    total_mom: int
+    irrep: str 
+    irrep_row: str
+    flavor_structure: List[str,str] # eg. 'light_charm'
+
+    if total_mom != 0:
+        descent_of_symmetry = subduction.lookup() # follows altmann ref 
+
+        
+
+    
+
+
+
 def get_dim_channel(channel:dict): 
     dim = sum(map(len,channel.values()))
     return dim 
@@ -73,6 +98,27 @@ def get_dim_channel(channel:dict):
 We must tie together a light and charm perambulator with some gamma structure and projection operator for non-zero momentum, so we will have two sets of fwd/backward perambulators and 4 elementals 
 
 """
+
+DD_a1m = {
+    "D": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None),
+    "D_2": QuantumNum(name='D_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
+    "D_rhoxB": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=True,deriv="B"),
+    "D_nabla": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=True,deriv="nabla"),
+    "D_Bxnabla": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=True,deriv="nabla"),
+
+
+    "D_rho2xB": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=True,deriv="B"),
+
+    "D_star": QuantumNum(name='pion_2',had=1, F="T1m", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=IDEN,gamma_i=True,deriv=None),
+    "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1",flavor='light', twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B")
+}
+
+DD_t1p = {
+    "pion_2": QuantumNum(name='pion_2',had=1, F="A1", flavor='light',twoI=1, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
+    "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1",flavor='light', twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B")
+
+}
+
 
 a1_p_dpi_nomix = {
     "pion_2": QuantumNum(name='pion_2',had=1, F="A1", flavor='light',twoI=1, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),

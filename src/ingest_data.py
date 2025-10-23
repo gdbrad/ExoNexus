@@ -2,7 +2,8 @@ import pathlib
 import h5py
 import numpy as np
 import os 
-from gamma import gamma
+from insertion_factory import gamma
+from insertion_factory.gamma import gamma
 import pickle
 
 mom_keys = {0: 'mom_-1_0_0', 1: 'mom_-2_0_0', 2: 'mom_-3_0_0', 3: 'mom_0_-1_0', 4: 'mom_0_-2_0', 5: 'mom_0_-3_0', 6: 'mom_0_0_-1', 7: 'mom_0_0_-2', 8: 'mom_0_0_-3', 9: 'mom_0_0_0', 10: 'mom_0_0_1', 11: 'mom_0_0_2', 12: 'mom_0_0_3', 13: 'mom_0_1_0', 14: 'mom_0_2_0', 15: 'mom_0_3_0', 16: 'mom_1_0_0', 17: 'mom_2_0_0', 18: 'mom_3_0_0'}
@@ -11,7 +12,7 @@ mom_keys_inv = {v: k for k, v in mom_keys.items()}
 disp_keys = {0: 'disp', 1: 'disp_1', 2: 'disp_1_1', 3: 'disp_1_2', 4: 'disp_1_3', 5: 'disp_2', 6: 'disp_2_1', 7: 'disp_2_2', 8: 'disp_2_3', 9: 'disp_3', 10: 'disp_3_1', 11: 'disp_3_2', 12: 'disp_3_3'}
 disp_keys_inv = {v: k for k, v in disp_keys.items()}
 
-def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.ndarray:
+def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int,tsrc_step: int) -> np.ndarray:
     """
     Reads an HDF5 file written by chroma containing the distilled perambulator data from multiple t_sources.
 
@@ -19,40 +20,31 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
     ----------
     file : str
         The path to the hdf5 file.
-    max_t : it
+    max_t : int
         Temporal extent of the lattice (usually Lt).
     n_vecs : int
         Number of distillation basis vectors.
     num_tsrcs : int
         Number of t_sources (default is 24).
+    tsrc_step : int
+        Step size between t_sources (default is 4).
 
     Returns
     -------
     perambulator : np.ndarray
         A numpy array containing the perambulators. The shape is (num_tsrcs, max_t, 4, 4, n_vecs, n_vecs).
     """
-    # print(f"Reading propagator file: {file}")
-    pickle_file = "/home/grant/exotraction/peram_1001.pkl"  # Cache file name based on input parameters
-    # if os.path.exists(pickle_file):
-        # print('found pickle file')
-        # with open(pickle_file,'rb') as pf:
-        #     f = pickle.load(pf)
-    # else: 
-    # with h5py.File(file,'r') as hf:
-    #     f = {key: hf[key][:] for key in hf.keys()}
+    # Extract tsrc_step from kwargs with default value of 4
+    #tsrc_step = kwargs.get('tsrc_step', 4)
 
-    # if pathlib.Path(cache_file).is_file():
-    #     print(f"Loading cached meson data from {cache_file}")
-    #     return joblib.load(cache_file)
-    
     # Initialize the array for all t_sources
     peram = np.zeros((num_tsrcs, max_t, 4, 4, n_vecs, n_vecs), dtype=np.cdouble)
 
     # Open the file for reading
     with h5py.File(file, 'r') as f:
-    # Loop over all t_sources (t_source_0, t_source_4, ..., t_source_92)
+        # Loop over all t_sources (t_source_0, t_source_4, ..., t_source_92)
         for t_src_idx in range(0, num_tsrcs):
-            t_src_group_name = f't_source_{t_src_idx * 4}'  # Assuming the t_sources are spaced by 4 (e.g., 0, 4, 8, ...)
+            t_src_group_name = f't_source_{t_src_idx*tsrc_step}'  # Using tsrc_step for spacing
             if t_src_group_name not in f:
                 print(f"Warning: {t_src_group_name} not found in {file}. Skipping...")
                 continue
@@ -70,15 +62,7 @@ def load_peram(file: str, max_t: int, n_vecs: int, num_tsrcs: int = 24) -> np.nd
                         peram[t_src_idx, t_slice_idx, spin_src_idx, spin_snk_idx, :, :] = \
                             spin_snk_data['real'][:] + spin_snk_data['imag'][:] * 1j
 
-    # print(f"Caching peram data to {cache_file}")
-    # joblib.dump(peram, cache_file)
-    # if pickle:
-    #     print("pickling file")
-    #     with open('peram_light_1001.pkl', 'wb') as f:
-    #         pickle.dump(peram, f)
-
     return peram
-
 
 def load_elemental(file: str, max_t: int, n_vecs: int, mom: str | None = None, disp: str | None = None) -> np.ndarray:
     """Reads an HDF5 file written by chroma containing the meson elemental data. By default it reads all momenta and displacements, \

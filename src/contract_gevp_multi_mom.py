@@ -13,6 +13,7 @@ from operator_factory import QuantumNum
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from contract_routines import *
 from opt_einsum import contract
+from __init__ import *
 
 timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1], gamma[2], gamma[3], gamma[4]]
@@ -38,6 +39,7 @@ def correlator_matrix(
     operators: Dict[str,QuantumNum], #passed by channel given in input file to ``load_op_map``
     mom_list: List[str],
     tsrc_avg: bool, #avg over all tsrc locations before writing out correlators
+    tsrc_step:int,
     mom_avg: bool,
     meson_dir: str,
     peram_dir: str, 
@@ -47,7 +49,9 @@ def correlator_matrix(
     channel: str,
     cfg_id: str,
     ntsrc: int,
-    nvec: int):
+    nvec: int,
+    h5_group: 'h5py.Group') -> bool:
+
     '''handles list of momenta tuples, which are contained in the elemental files as strings
     Avoids redundant momenta averaging or post-projection if the operators from ``Operator_factory`` are already subduced 
     '''
@@ -59,6 +63,16 @@ def correlator_matrix(
     # load base (light) perambulator
     peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
     peram_file = os.path.join(peram_dir, peram_filename)
+    if not os.path.isfile(peram_file):
+        print(f"Peram file {peram_file} not found. Skipping cfg {cfg_id}.")
+        return False
+    
+    meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
+    meson_file = os.path.join(meson_dir, meson_filename)
+    if not os.path.isfile(meson_file):
+        print(f"Meson file {meson_file} not found. Skipping cfg {cfg_id}.")
+        return False
+    
     peram = load_peram(peram_file, nt, nvec, ntsrc)
 
     peram_flavors = {'light': peram}
@@ -112,6 +126,8 @@ def correlator_matrix(
                 # Determine forward and backward propagation based on flavor order
                 src_flavor_weight = FLAVOR_ORDER[src_op.flavor]
                 snk_flavor_weight = FLAVOR_ORDER[snk_op.flavor]
+                forward_flavor = src_op.flavor if src_flavor_weight <= snk_flavor_weight else snk_op.flavor
+                backward_flavor = snk_op.flavor if src_flavor_weight <= snk_flavor_weight else src_op.flavor
                 
                 if src_flavor_weight <= snk_flavor_weight:
                     # Source is lighter or equal, propagates forward; sink backward
@@ -158,24 +174,31 @@ def correlator_matrix(
                         else:
                             meson_matrix[mom_idx, src_idx, snk_idx, t] = correlation.real
 
-                    if not tsrc_avg:
+                    if not (mom_avg or tsrc_avg):
                         group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
                         h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
-
+                    elif mom_avg and not tsrc_avg:
+                        group_name = f"/{src_op.name}_{snk_op.name}/tsrc_{tsrc}/cfg_{cfg_id}"
+                        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx, :])
                 # Perform tsrc averaging if requested
                 if tsrc_avg:
                     # Apply time shifts and average over tsrc
                     for i in range(ntsrc):
                         temp_matrix[mom_idx, src_idx, snk_idx, i, :] = np.roll(
-                            temp_matrix[mom_idx, src_idx, snk_idx, i, :], -4 * i
+                            temp_matrix[mom_idx, src_idx, snk_idx, i, :], -tsrc_step * i
                         )
-                    meson_matrix[mom_idx, src_idx, snk_idx, :] = temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0)
-                    
-                    # Write averaged data
-                    group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
-                    h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
+                    if mom_avg:
+                        meson_matrix[src_idx, snk_idx, :] += temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0).real / nmom
+                    else:
+                        meson_matrix[mom_idx, src_idx, snk_idx, :] = temp_matrix[mom_idx, src_idx, snk_idx, :].mean(axis=0).real
+                        group_name = f"/mom_{mom}/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+                        h5_group.create_dataset(group_name, data=meson_matrix[mom_idx, src_idx, snk_idx, :])
+    if mom_avg and tsrc_avg:
+        group_name = f"/{src_op.name}_{snk_op.name}/cfg_{cfg_id}"
+        h5_group.create_dataset(group_name, data=meson_matrix[src_idx, snk_idx, :])
 
-    print("HDF5 file successfully written with GEVP data.")
+    print(f"Cfg {cfg_id} processed successfully{' (mom averaged)' if mom_avg else ''}{' (tsrc averaged)' if tsrc_avg else ''}, irrep {irrep}.")
+    return True
 
 def main(in_file,cfg_ids,task_id):
     with open(in_file, 'r') as f:
