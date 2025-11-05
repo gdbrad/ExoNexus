@@ -1,7 +1,7 @@
 from typing import List
 import os 
 from ingest_data import load_elemental,load_peram,reverse_perambulator_time
-from __init__ import MESON_NAME_MAP, DI_MESON_NAME_MAP, BASE_PATH
+from __init__ import MESON_NAME_MAP, DI_MESON_NAME_MAP, BASE_PATH,TAPE_PATH
 
 class FileIO:
     def __init__(self,
@@ -11,7 +11,8 @@ class FileIO:
                  nvecs: int,
                  LT: int,
                  num_tsrc: int,
-                 tsrc_step: int):
+                 tsrc_step: int,
+                 data1:bool):
         self.flavor_contents = flavor_contents
         self.cfg_id = cfg_id
         self.ens = ens
@@ -19,13 +20,23 @@ class FileIO:
         self.LT = LT
         self.num_tsrc = num_tsrc
         self.tsrc_step = tsrc_step
+        self.data1 = data1
         # Define directories
-        self.dirs = {
-            'light': os.path.join(BASE_PATH, ens, 'perams_sdb', f'numvec{nvecs}'),
-            'meson': os.path.join(BASE_PATH, ens, 'meson_sdb'),
-            'strange': os.path.join(BASE_PATH, ens, 'perams_strange_sdb'),
-            'charm': os.path.join(BASE_PATH, ens, 'perams_charm_sdb')
-        }
+        if self.data1:
+            self.dirs = {
+                'light': os.path.join(TAPE_PATH, ens, 'perams_h5'),
+                'meson': os.path.join(TAPE_PATH, ens, 'meson_h5'),
+                'strange': os.path.join(BASE_PATH, ens, 'perams_strange_sdb'),
+                'charm': os.path.join(BASE_PATH, ens, 'perams_charm_sdb')
+            }
+        else:
+            self.dirs = {
+                'light': os.path.join(BASE_PATH, ens, 'perams_sdb', f'numvec{nvecs}'),
+                'meson': os.path.join(BASE_PATH, ens, 'meson_sdb'),
+                'strange': os.path.join(BASE_PATH, ens, 'perams_strange_sdb'),
+                'charm': os.path.join(BASE_PATH, ens, 'perams_charm_sdb')
+            }
+
         # Preload meson elemental and perambulator data
         meson_path = os.path.join(self.dirs['meson'], f"meson-{self.nvecs}_cfg{self.cfg_id}.h5")
         if not os.path.exists(meson_path):

@@ -187,6 +187,7 @@ def two_pt(nvecs: int,
         meson_data = np.zeros((num_tsrc, LT), dtype=np.cdouble)
         peram, peram_back = peram_data[flavor]
         phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0], optimize='optimal')
+        
 
         for tsrc_idx in range(num_tsrc):
             tsrc = tsrc_idx * tsrc_step
@@ -221,7 +222,9 @@ def main(nvecs: int,
          flavor_contents: List[str],
          num_tsrc: int,
          tsrc_step: int,
-         three_bar: bool = False):
+         data1: bool,
+         three_bar: bool = False,
+         ):
     """
     Process a single configuration for one or two flavor systems.
     """
@@ -233,12 +236,13 @@ def main(nvecs: int,
         nvecs=nvecs,
         LT=LT,
         num_tsrc=num_tsrc,
-        tsrc_step=tsrc_step
+        tsrc_step=tsrc_step,
+        data1=data1
     )
 
     # Output file name based on meson system
     system_name = file_io.get_meson_system_name()
-    h5_output_file = f'{system_name}_cfg{cfg_id}_2pt_nvec_{nvecs}_tsrc_{num_tsrc}_test.h5'
+    h5_output_file = f'{ens}_{system_name}_cfg{cfg_id}_2pt_nvec_{nvecs}_tsrc_{num_tsrc}_test.h5'
 
     with h5py.File(h5_output_file, "w") as h5f:
         h5_group = h5f.create_group(f"{system_name}_000")
@@ -259,6 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('--flavor', type=str, required=True, help="Flavor content(s), comma-separated (e.g., light_charm,light_light)")
     parser.add_argument('--ntsrc', type=int, required=True, help="number of tsrc insertions")
     parser.add_argument('--tsrc_step', type=int, required=False, default=1, help="step size for tsrc")
+    parser.add_argument('--data1',action='store_true',help="is meson data in the data1 dir")
     parser.add_argument('--three_bar', action='store_true', help="Compute the 3-bar representation with disconnected term")
 
     args = parser.parse_args()
@@ -273,5 +278,6 @@ if __name__ == '__main__':
         flavor_contents=flavor_contents,
         num_tsrc=args.ntsrc,
         tsrc_step=args.tsrc_step,
-        three_bar=args.three_bar
+        three_bar=args.three_bar,
+        data1=args.data1
     )

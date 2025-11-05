@@ -65,17 +65,25 @@ class MHICollection:
 
 class MHI(List[List[QuantumNum]]):
     '''construct multi-hadron operators out of single hadron operators using nested lists of `QuantumNum` objects '''
+    def __init__(self):
+        op1_name: str
+        op2_name: str
+        irrep: str 
+        irrep_row: str
+        flavor_structure: List[str,str] # eg. 'light_charm'
 
-    pair_name: str
-    total_mom: int
-    irrep: str 
-    irrep_row: str
-    flavor_structure: List[str,str] # eg. 'light_charm'
+    def make_mhi(self):
+        pass
 
-    if total_mom != 0:
-        descent_of_symmetry = subduction.lookup() # follows altmann ref 
+    def _combine_pair(self):
+        return self.op1_name + "_"+ self.op2_name 
 
-        
+
+
+    # if total_mom != 0:
+    #     descent_of_symmetry = subduction.lookup() # follows altmann ref 
+
+
 
     
 
@@ -100,7 +108,31 @@ We must tie together a light and charm perambulator with some gamma structure an
 """
 
 DD_a1m = {
-    "D": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None),
+    # D-meson operators
+    "D[000]": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_0'),
+    "D[001]": QuantumNum(name='D_001',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_1'),
+    "D[011]": QuantumNum(name='D_011',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_1_1'),
+    "D[002]": QuantumNum(name='D_011',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_2'),
+    "D[111]": QuantumNum(name='D_001',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_1_1_1'),
+
+    # D*-meson operators
+    "D*[000]": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_0'),
+    "D*[001]": QuantumNum(name='D_001',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_1'),
+    "D*[011]": QuantumNum(name='D_011',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_1_1'),
+    "D*[002]": QuantumNum(name='D_011',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_0_0_2'),
+    "D*[111]": QuantumNum(name='D_001',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv=None,mom='mom_1_1_1'),
+
+    # D-meson operators w/ 1st order derivative 
+    "D[000]_nabla": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=False,deriv="nabla",mom='mom_0_0_0'),
+    "D[000]_a1xnabla": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=True,deriv='nabla',mom='mom_0_0_0'),
+    "D[000]_b1xnabla": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[4]@gamma[5],gamma_i=True,deriv="nabla",mom='mom_0_0_0'),
+    "D[000]_b1xnabla": QuantumNum(name='D_000',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[4]@gamma[5],gamma_i=True,deriv="nabla",mom='mom_0_0_0'),
+
+
+
+
+
+
     "D_2": QuantumNum(name='D_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=False,deriv=None),
     "D_rhoxB": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=True,deriv="B"),
     "D_nabla": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5],gamma_i=True,deriv="nabla"),
@@ -109,7 +141,7 @@ DD_a1m = {
 
     "D_rho2xB": QuantumNum(name='pion_2',had=1, F="A1", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=gamma[5]@gamma[4],gamma_i=True,deriv="B"),
 
-    "D_star": QuantumNum(name='pion_2',had=1, F="T1m", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=IDEN,gamma_i=True,deriv=None),
+    "D*[000]": QuantumNum(name='pion_2',had=1, F="T1m", flavor='charm,light',twoI=0, S=0, P=-1, C=1, gamma=IDEN,gamma_i=True,deriv=None,mom='mom_0_0_0'),
     "rho_2xB_A1": QuantumNum(name='rho_2xB_A1',had=1, F="A1",flavor='light', twoI=1, S=0, P=-1, C=1, gamma=gamma[4],gamma_i=True,deriv="B")
 }
 
