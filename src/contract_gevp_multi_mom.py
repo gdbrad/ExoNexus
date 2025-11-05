@@ -7,13 +7,12 @@ import yaml
 import sys
 from typing import Iterable,List,Dict
 
-from gamma import gamma
 import operator_factory
 from operator_factory import QuantumNum
-from ingest_data import load_elemental, load_peram, reverse_perambulator_time
+from insertion_factory import gamma
 from contract_routines import *
-from opt_einsum import contract
-from __init__ import *
+from file_io import FileIO
+
 
 timestr = time.strftime("%Y-%m-%d")
 gamma_i = [gamma[1], gamma[2], gamma[3], gamma[4]]
@@ -35,77 +34,78 @@ def load_op_map(channel:str):
         raise AttributeError(f"'{channel}' not found in operator_factory")
 
 
-def correlator_matrix(
-    operators: Dict[str,QuantumNum], #passed by channel given in input file to ``load_op_map``
-    mom_list: List[str],
-    tsrc_avg: bool, #avg over all tsrc locations before writing out correlators
-    tsrc_step:int,
-    mom_avg: bool,
-    meson_dir: str,
-    peram_dir: str, 
-    peram_strange_dir: str,
-    peram_charm_dir: str,
-    nt: int,
-    channel: str,
-    cfg_id: str,
-    ntsrc: int,
-    nvec: int,
-    h5_group: 'h5py.Group') -> bool:
+def two_pt_corr_matrix(
+        operators: Dict[str,QuantumNum],
+        nvecs:int,
+        LT:int,
+        cfg_id:int,
+        file_io: FileIO,
+        h5_group,
+        flavor_contents: List[str],
+        ntsrc: int,
+        tsrc_step: int,
+        mom_list: List[str],
+        mom_avg: bool,
+        tsrc_avg: bool = False,
+        three_bar: bool = False
+        ) -> bool:
+    
+    
+    #passed by channel given in input file to ``load_op_map``
+    
 
     '''handles list of momenta tuples, which are contained in the elemental files as strings
     Avoids redundant momenta averaging or post-projection if the operators from ``Operator_factory`` are already subduced 
     '''
+    # ----------------- data loading --------------------------------------- #
 
+    # Get required flavors and file specifications using FileIO
+    required_flavors = file_io.get_required_flavors
+    file_specs = file_io.file_specs()
+
+    # Check paths for required flavors and meson elemental
+    paths = {'meson': file_io.get_file_path('meson')}
+    for flavor in required_flavors:
+        if flavor in file_specs:
+            paths[flavor] = file_io.get_file_path(flavor)
+
+    if not paths['meson'] or not all(paths.get(flavor) for flavor in required_flavors):
+        print(f"Missing required files for cfg {cfg_id}. Skipping.")
+        return False
+
+    print(f"Reading meson elementals file: {paths['meson']}")
+    for flavor in required_flavors:
+        print(f"Reading {flavor} perambulator file: {paths[flavor]}")
+
+    # Use preloaded data from FileIO
+    if file_io.meson_elemental is None:
+        print(f"Meson elemental data not loaded for cfg {cfg_id}. Skipping.")
+        return False
+    meson_elemental = file_io.meson_elemental
+    peram_light = file_io.peram_light
+    peram_strange = file_io.peram_strange
+    peram_charm = file_io.peram_charm
+
+    # Store perambulator data for each flavor system
+    peram_data = file_io.peram_data()
+#--------------------------------------------------------------------------#
+
+
+# initialize correlator matrix to fill with raw correlator data 
     nmom = len(mom_list)
     nop = len(operators)
-    # ----------------- data loading --------------------------- #
-
-    # load base (light) perambulator
-    peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
-    peram_file = os.path.join(peram_dir, peram_filename)
-    if not os.path.isfile(peram_file):
-        print(f"Peram file {peram_file} not found. Skipping cfg {cfg_id}.")
-        return False
-    
-    meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
-    meson_file = os.path.join(meson_dir, meson_filename)
-    if not os.path.isfile(meson_file):
-        print(f"Meson file {meson_file} not found. Skipping cfg {cfg_id}.")
-        return False
-    
-    peram = load_peram(peram_file, nt, nvec, ntsrc)
-
-    peram_flavors = {'light': peram}
-    unique_flavors = set(op.flavor for op in operators.values())
-
-    if 'strange' in unique_flavors:
-        peram_strange_filename = f"peram_strange_nv{nvec}_cfg{cfg_id}.h5"
-        peram_strange_file = os.path.join(peram_strange_dir, peram_strange_filename)
-        peram_flavors['strange'] = load_peram(peram_strange_file, nt, nvec, ntsrc)
-    if 'charm' in unique_flavors:
-        peram_charm_filename = f"peram_charm_nv{nvec}_cfg{cfg_id}.h5"
-        peram_charm_file = os.path.join(peram_charm_dir, peram_charm_filename)
-        peram_flavors['charm'] = load_peram(peram_charm_file, nt, nvec, ntsrc)
-
-
-    meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
-    meson_file = os.path.join(meson_dir, meson_filename)
-
-    # Precompute reversed perambulators
-    peram_back = {flavor: reverse_perambulator_time(peram) for flavor, peram in peram_flavors.items()}
-    # ------------------------------------------------------------------------------------------------#
-
-    # initialize correlator matrix to fill with raw correlator data 
     if mom_avg and tsrc_avg:
-        meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
-        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nop, nop, LT), dtype=np.cdouble)
+        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, LT), dtype=np.cdouble) #before averaging
+        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, LT), dtype=np.cdouble)
     elif mom_avg:
-        meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nop, nop, LT), dtype=np.cdouble)
     elif tsrc_avg:
-        meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
-        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nmom, nop, nop, LT), dtype=np.cdouble)
+        # before averaging
+        temp_matrix = np.zeros((nmom, nop, nop, ntsrc, LT), dtype=np.cdouble)
     else:
-        meson_matrix = np.zeros((nmom, nop, nop, nt), dtype=np.cdouble)
+        meson_matrix = np.zeros((nmom, nop, nop, LT), dtype=np.cdouble)
 
     # Determine dominant flavor for file naming
     #dominant_flavor = next((f for f in ['charm', 'strange', 'light'] if f in unique_flavors), 'light')
@@ -138,25 +138,25 @@ def correlator_matrix(
                     fwd_flavor = snk_op.flavor
                     bkwd_flavor = src_op.flavor
                 for tsrc in range(ntsrc):
-                    for t in range(nt):
+                    for t in range(LT):
                         tau = peram_flavors[fwd_flavor][tsrc, t, :, :, :, :]
                         tau_ = peram_back[bkwd_flavor][tsrc, t, :, :, :, :]
 
                         if src_op.deriv is None:
-                            phi_0, _ = contract_local(meson_file, nt, nvec, src_op, t,mom)
+                            phi_0, _ = contract_local(meson_file, LT, nvec, src_op, t,mom)
                         elif src_op.deriv == "nabla":
-                            phi_0, _ = contract_nabla(meson_file, nt, nvec, src_op, t,mom)
+                            phi_0, _ = contract_nabla(meson_file, LT, nvec, src_op, t,mom)
                         elif src_op.deriv in ["B", "D"]:
-                            phi_0, _ = contract_B_D(meson_file,nt,nvec,src_op, t,mom, add=(src_op.deriv == "D"))
+                            phi_0, _ = contract_B_D(meson_file,LT,nvec,src_op, t,mom, add=(src_op.deriv == "D"))
                         else:
                             continue
 
                         if snk_op.deriv is None:
-                            _, phi_t = contract_local(meson_file, nt, nvec, snk_op, t ,mom)
+                            _, phi_t = contract_local(meson_file, LT, nvec, snk_op, t ,mom)
                         elif snk_op.deriv == "nabla":
-                            _, phi_t = contract_nabla(meson_file, nt, nvec, snk_op, t ,mom)
+                            _, phi_t = contract_nabla(meson_file, LT, nvec, snk_op, t ,mom)
                         elif snk_op.deriv in ["B", "D"]:
-                            _, phi_t = contract_B_D(meson_file,nt,nvec,snk_op, t, mom, add=(snk_op.deriv == "D"))
+                            _, phi_t = contract_B_D(meson_file,LT,nvec,snk_op, t, mom, add=(snk_op.deriv == "D"))
                         else:
                             continue
 

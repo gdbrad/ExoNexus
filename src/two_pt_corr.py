@@ -6,6 +6,10 @@ from insertion_factory import gamma
 from typing import List
 from file_io import FileIO
 
+def _tsrc_avg(group_name:str):
+    pass
+    
+
 def two_pt(nvecs: int,
            LT: int,
            cfg_id: int,
@@ -48,7 +52,7 @@ def two_pt(nvecs: int,
 
     # Store perambulator data for each flavor system
     peram_data = file_io.peram_data()
-
+#-------------------------------------------------------------# 
     # Compute di-meson correlator if multiple flavors are provided
     if len(flavor_contents) > 1:
         flavor1, flavor2 = flavor_contents
