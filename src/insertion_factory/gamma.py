@@ -1,5 +1,5 @@
 import numpy as np 
-import scipy as scp
+#import scipy as scp
 import pprint
 
 sigma: dict[int, np.ndarray] = {}
@@ -33,7 +33,7 @@ gamma[4][2:, :2] = I
 gamma[5] = gamma[1] @ gamma[2] @ gamma[3] @ gamma[4]
 
 # TODO when are these necessary to use? for the deriv operators? 
-I_sparse = scp.sparse.csr_matrix(I)
+#I_sparse = scp.sparse.csr_matrix(I)
 # g5_block = scp.sparse.kron(I,gamma.gamma[5],format='csr')
 # g5_sparse = scp.sparse.csr_matrix(gamma.gamma[5])
 # g4_block = scp.sparse.kron(I,gamma.gamma[4],format='csr')

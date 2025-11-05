@@ -1,155 +1,221 @@
-from typing import List
-import abc 
-import os 
-from ingest_data import load_elemental,load_peram,reverse_perambulator_time
-from __init__ import MESON_NAME_MAP, DI_MESON_NAME_MAP, BASE_PATH,TAPE_PATH
 
-class FileIO:
-    def __init__(self,
-                 flavor_contents: List[str],
-                 cfg_id: int,
-                 ens: str,
-                 nvecs: int,
-                 LT: int,
-                 num_tsrc: int,
-                 tsrc_step: int,
-                 data1:bool):
-        self.flavor_contents = flavor_contents
-        self.cfg_id = cfg_id
+"""
+distillation_processor.py
+
+- DistillationObjectsIO      : I/O, path handling, loading of perambulators & elementals
+- DistillationProcessor     : inherits I/O, adds correlator logic
+  ├─ two_pt()                : orchestrator (class method)
+  ├─ single_meson_correlator(): compute <M(t)M(0)> for one flavour
+  └─ di_meson_correlator()   : compute direct / crossing / disconnected for two flavours
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import os
+from pathlib import Path
+from typing import List, Dict, Tuple, Set, Any
+
+import h5py
+import numpy as np
+import yaml
+from insertion_factory import gamma
+
+# ----------------------------------------------------------------------
+# Package-specific imports
+# ----------------------------------------------------------------------
+from ingest_data import load_elemental, load_peram, reverse_perambulator_time
+from __init__ import (
+    MESON_NAME_MAP,
+    DI_MESON_NAME_MAP,
+    BASE_PATH,
+    TAPE_PATH,
+)
+
+
+# ----------------------------------------------------------------------
+# Base I/O class
+# ----------------------------------------------------------------------
+class DistillationObjectsIO:
+    def __init__(self, ens: str | None = None, collection: str | None = None) -> None:
         self.ens = ens
-        self.nvecs = nvecs
-        self.LT = LT
-        self.num_tsrc = num_tsrc
-        self.tsrc_step = tsrc_step
-        self.data1 = data1
-        # Define directories
-        if self.data1:
-            self.dirs = {
-                'light': os.path.join(TAPE_PATH, ens, 'perams_h5'),
-                'meson': os.path.join(TAPE_PATH, ens, 'meson_h5'),
-                'strange': os.path.join(BASE_PATH, ens, 'perams_strange_sdb'),
-                'charm': os.path.join(BASE_PATH, ens, 'perams_charm_sdb')
-            }
-        else:
-            self.dirs = {
-                'light': os.path.join(BASE_PATH, ens, 'perams_sdb', f'numvec{nvecs}'),
-                'meson': os.path.join(BASE_PATH, ens, 'meson_sdb'),
-                'strange': os.path.join(BASE_PATH, ens, 'perams_strange_sdb'),
-                'charm': os.path.join(BASE_PATH, ens, 'perams_charm_sdb')
-            }
+        if collection is None:
+            collection = str(datetime.datetime.now())
+            for c in " :.-":
+                collection = collection.replace(c, "_")
+        self.collection = collection
 
-        # Preload meson elemental and perambulator data
-        meson_path = os.path.join(self.dirs['meson'], f"meson-{self.nvecs}_cfg{self.cfg_id}.h5")
-        if not os.path.exists(meson_path):
-            print(f"Meson elemental file not found: {meson_path}")
-            self.meson_elemental = None
-        else:
-            self.meson_elemental = load_elemental(meson_path, LT, nvecs, mom='mom_0_0_0', disp='disp')
-        
-        self.peram_light = load_peram(os.path.join(self.dirs['light'], f"peram_{nvecs}_cfg{cfg_id}.h5"), 
-                                      LT, nvecs, num_tsrc, tsrc_step) if 'light_light' in flavor_contents or 'light_strange' in flavor_contents or 'light_charm' in flavor_contents else None
-        self.peram_charm = load_peram(os.path.join(self.dirs['charm'], f"peram_charm_nv{nvecs}_cfg{cfg_id}.h5"), 
-                                      LT, nvecs, num_tsrc, tsrc_step) if 'light_charm' in flavor_contents or 'charm_strange' in flavor_contents or 'charm_charm' in flavor_contents else None
-        self.peram_strange = load_peram(os.path.join(self.dirs['strange'], f"peram_strange_nv{nvecs}_cfg{cfg_id}.h5"), 
-                                        LT, nvecs, num_tsrc, tsrc_step) if 'light_strange' in flavor_contents or 'charm_strange' in flavor_contents else None
-
-    def peram_data(self):
-        peram_data = {}
-        flavor_map = self.flavor_map()
-        for idx, flavor_content in enumerate(self.flavor_contents, 1):
-            if flavor_content not in flavor_map:
-                print(f"Flavor '{flavor_content}' not found in flavor_map. Skipping.")
-                return False
-            peram, peram_back_data, peram_file, peram_back_file = flavor_map[flavor_content]
-            if peram_back_data is None:
-                print(f"Required {flavor_content} back perambulator file missing: {peram_back_file}. Skipping.")
-                return False
-            peram_back = reverse_perambulator_time(peram_back_data)
-            print(f"Flavor '{flavor_content}' (meson {idx}):")
-            print(f"  Perambulator loaded: {peram_file}")
-            print(f"  Reverse perambulator loaded: {peram_back_file}")
-
-            # Store perambulator data for di-meson contractions
-            peram_data[flavor_content] = (peram, peram_back)
-
-        return peram_data
-    
-    def file_specs(self):
-        """File naming conventions for a single cfg."""
-        return {
-            'light': (self.dirs['light'], f"peram_{self.nvecs}_cfg{{cfg_id}}.h5"),
-            'meson': (self.dirs['meson'], f"meson-{self.nvecs}_cfg{{cfg_id}}.h5"),
-            'strange': (self.dirs['strange'], f"peram_strange_nv{self.nvecs}_cfg{{cfg_id}}.h5"),
-            'charm': (self.dirs['charm'], f"peram_charm_nv{self.nvecs}_cfg{{cfg_id}}.h5")
+        self.dirs: Dict[str, str] = {
+            "light": os.path.join(TAPE_PATH, ens, "perams_h5"),
+            "meson": os.path.join(TAPE_PATH, ens, "meson_h5"),
+            "strange": os.path.join(BASE_PATH, ens, "perams_strange_sdb"),
+            "charm": os.path.join(BASE_PATH, ens, "perams_charm_sdb"),
         }
 
-    def get_meson_system_name(self) -> str:
-        """Return the name of the meson system based on flavor contents."""
-        if len(self.flavor_contents) == 1:
-            return MESON_NAME_MAP.get(self.flavor_contents[0], self.flavor_contents[0])
-        else:
-            flavor_pair = tuple(self.flavor_contents)
-            return DI_MESON_NAME_MAP.get(flavor_pair, '_'.join(self.flavor_contents))
+        # will be filled later
+        self.nvecs: int | None = None
+        self.lt: int | None = None
+        self.ntsrc: int | None = None
+        self.tsrc_step: int | None = None
+        self.flavor_contents: List[str] = []
+        self.cfg_id: int | None = None
+        self.data1: bool = False
 
-    def get_file_path(self, flavor: str = 'meson') -> str | None:
-        """Construct file path for a given flavor and check if it exists."""
-        file_specs = self.file_specs()
-        if flavor not in file_specs:
-            print(f"Flavor '{flavor}' not recognized in file_specs.")
-            return None
-        directory, filename = file_specs[flavor]
-        full_path = os.path.join(directory, filename.format(cfg_id=self.cfg_id))
-        if not os.path.exists(full_path):
-            print(f"File not found: {full_path}. Skipping.")
-            return None
-        return full_path
+        # loaded data
+        self.meson_elemental: Any | None = None
+        self.peram_light: Any | None = None
+        self.peram_strange: Any | None = None
+        self.peram_charm: Any | None = None
 
-    def _get_required_flavors(self) -> set:
-        """Determine the required quark flavors based on flavor contents."""
-        required_flavors = set()
-        for flavor_content in self.flavor_contents:
-            if flavor_content == 'light_light':
-                required_flavors.add('light')
-            elif flavor_content == 'light_strange':
-                required_flavors.update(['light', 'strange'])
-            elif flavor_content == 'light_charm':
-                required_flavors.update(['light', 'charm'])
-            elif flavor_content == 'charm_strange':
-                required_flavors.update(['charm', 'strange'])
-            elif flavor_content == 'charm_charm':
-                required_flavors.add('charm')
+    # ------------------------------------------------------------------
+    # YAML → contraction parameters
+    # ------------------------------------------------------------------
+    def _get_contraction_settings(self) -> Dict[str, Any]:
+        if self.ens is None:
+            raise ValueError("Must specify ensemble!")
+        yaml_path = Path(self.dirs["light"]).parent / f"{self.ens}.ini.yml"
+        if not yaml_path.is_file():
+            raise FileNotFoundError(f"No extraction input file: {yaml_path}")
+        with yaml_path.open() as f:
+            data = yaml.safe_load(f)
+        return data[self.ens]
+
+    def get_contraction_params(self) -> Dict[str, Any]:
+        settings = self._get_contraction_settings()
+        params = settings["params"]
+        self.nvecs = params["nvecs"]
+        self.lt = params["lt"]
+        self.ntsrc = params["ntsrc"]
+        self.tsrc_step = params["tsrc_step"]
+        self.flavor_contents = params["flavor_contents"]
+        return params.copy()
+
+    # ------------------------------------------------------------------
+    # File-spec helpers
+    # ------------------------------------------------------------------
+    def file_specs(self) -> Dict[str, Tuple[str, str]]:
+        return {
+            "light": (self.dirs["light"], f"peram_{self.nvecs}_cfg{{cfg_id}}.h5"),
+            "meson": (self.dirs["meson"], f"meson-{self.nvecs}_cfg{{cfg_id}}.h5"),
+            "strange": (self.dirs["strange"], f"peram_strange_nv{self.nvecs}_cfg{{cfg_id}}.h5"),
+            "charm": (self.dirs["charm"], f"peram_charm_nv{self.nvecs}_cfg{{cfg_id}}.h5"),
+        }
+
+    def get_file_path(self, flavor: str = "meson") -> str | None:
+        specs = self.file_specs()
+        if flavor not in specs:
+            print(f"Flavor '{flavor}' not recognised.")
+            return None
+        directory, tmpl = specs[flavor]
+        path = Path(directory) / tmpl.format(cfg_id=self.cfg_id)
+        return str(path) if path.is_file() else None
+
+    # ------------------------------------------------------------------
+    # Flavor logic
+    # ------------------------------------------------------------------
+    def _get_required_flavors(self) -> Set[str]:
+        req: Set[str] = set()
+        for fc in self.flavor_contents:
+            if fc == "light_light":
+                req.add("light")
+            elif fc == "light_strange":
+                req.update({"light", "strange"})
+            elif fc == "light_charm":
+                req.update({"light", "charm"})
+            elif fc == "charm_strange":
+                req.update({"charm", "strange"})
+            elif fc == "charm_charm":
+                req.add("charm")
             else:
-                print(f"Flavor '{flavor_content}' not recognized, defaulting to light.")
-                required_flavors.add('light')
-        return required_flavors
+                print(f"Unrecognised flavour content '{fc}', treating as light.")
+                req.add("light")
+        return req
 
     @property
-    def get_required_flavors(self) -> set:
-        """Property to access required flavors."""
+    def required_flavors(self) -> Set[str]:
         return self._get_required_flavors()
 
-    def flavor_map(self) -> dict:
-        """Construct flavor map based on available perambulators."""
-        flavor_map = {}
-        required_flavors = self.get_required_flavors
-        paths = self.file_specs()
-        for flavor_content in self.flavor_contents:
-            if flavor_content not in {'light_light', 'light_strange', 'light_charm', 'charm_strange', 'charm_charm'}:
-                print(f"Flavor '{flavor_content}' not recognized, defaulting to light_light.")
-                flavor_content = 'light_light'
+    def get_meson_system_name(self) -> str:
+        if len(self.flavor_contents) == 1:
+            return MESON_NAME_MAP.get(self.flavor_contents[0], self.flavor_contents[0])
+        pair = tuple(self.flavor_contents)
+        return DI_MESON_NAME_MAP.get(pair, "_".join(self.flavor_contents))
 
-            if flavor_content == 'light_light':
-                flavor_map[flavor_content] = (self.peram_light, self.peram_light, paths.get('light'), paths.get('light'))
-            elif flavor_content == 'light_strange' and 'strange' in required_flavors:
-                flavor_map[flavor_content] = (self.peram_light, self.peram_strange, paths.get('light'), paths.get('strange'))
-            elif flavor_content == 'light_charm' and 'charm' in required_flavors:
-                flavor_map[flavor_content] = (self.peram_light, self.peram_charm, paths.get('light'), paths.get('charm'))
-            elif flavor_content == 'charm_strange' and 'charm' in required_flavors and 'strange' in required_flavors:
-                flavor_map[flavor_content] = (self.peram_charm, self.peram_strange, paths.get('charm'), paths.get('strange'))
-            elif flavor_content == 'charm_charm':
-                flavor_map[flavor_content] = (self.peram_charm, self.peram_charm, paths.get('charm'), paths.get('charm'))
+    # ------------------------------------------------------------------
+    # Load everything for a single cfg
+    # ------------------------------------------------------------------
+    def load_distillation_objects(self) -> None:
+        if None in (self.nvecs, self.lt, self.ntsrc, self.tsrc_step, self.cfg_id):
+            raise RuntimeError("Call get_contraction_params() first!")
+
+        LT = self.lt
+        nvecs = self.nvecs
+        num_tsrc = self.ntsrc
+        tsrc_step = self.tsrc_step
+
+        # meson elemental
+        meson_path = self.get_file_path("meson")
+        if meson_path is None:
+            self.meson_elemental = None
+            return
+        # TODO REPLACE MOM AND DISP IN TWO_PT_CORR FROM OPERATORY_FACTORY
+        self.meson_elemental = load_elemental(meson_path, nvecs, mom="mom_0_0_0", disp="disp")
+
+        # perambulators (only those needed)
+        need_light = any("light" in fc for fc in self.flavor_contents)
+        need_strange = any("strange" in fc for fc in self.flavor_contents)
+        need_charm = any("charm" in fc for fc in self.flavor_contents)
+
+        if need_light:
+            p = self.get_file_path("light")
+            if p:
+                self.peram_light = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
+        if need_strange:
+            p = self.get_file_path("strange")
+            if p:
+                self.peram_strange = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
+        if need_charm:
+            p = self.get_file_path("charm")
+            if p:
+                self.peram_charm = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
+
+    # ------------------------------------------------------------------
+    # Build forward / backward map (used by both correlator methods)
+    # ------------------------------------------------------------------
+    def _peram_data(self) -> Dict[str, Tuple[Any, Any]]:
+        data: Dict[str, Tuple[Any, Any]] = {}
+        specs = self.file_specs()
+
+        for fc in self.flavor_contents:
+            if fc == "light_light":
+                peram = self.peram_light
+                back = reverse_perambulator_time(self.peram_light)
+                files = (specs["light"][0], specs["light"][0])
+            elif fc == "light_strange":
+                peram = self.peram_light
+                back = reverse_perambulator_time(self.peram_strange)
+                files = (specs["light"][0], specs["strange"][0])
+            elif fc == "light_charm":
+                peram = self.peram_light
+                back = reverse_perambulator_time(self.peram_charm)
+                files = (specs["light"][0], specs["charm"][0])
+            elif fc == "charm_strange":
+                peram = self.peram_charm
+                back = reverse_perambulator_time(self.peram_strange)
+                files = (specs["charm"][0], specs["strange"][0])
+            elif fc == "charm_charm":
+                peram = self.peram_charm
+                back = reverse_perambulator_time(self.peram_charm)
+                files = (specs["charm"][0], specs["charm"][0])
             else:
-                print(f"Required perambulators for {flavor_content} not available. Defaulting to light_light.")
-                flavor_map[flavor_content] = (self.peram_light, self.peram_light, paths.get('light'), paths.get('light'))
+                peram = self.peram_light
+                back = reverse_perambulator_time(self.peram_light)
+                files = (specs["light"][0], specs["light"][0])
 
-        return flavor_map
+            if peram is None or back is None:
+                raise FileNotFoundError(f"Missing perambulator for {fc}")
+
+            data[fc] = (peram, back)
+            print(f"Loaded {fc}: forward {files[0]}, backward {files[1]}")
+        return data
