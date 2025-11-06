@@ -5,8 +5,8 @@ distillation_processor.py
 - DistillationObjectsIO      : I/O, path handling, loading of perambulators & elementals
 - DistillationProcessor     : inherits I/O, adds correlator logic
   ├─ two_pt()                : orchestrator (class method)
-  ├─ single_meson_correlator(): compute <M(t)M(0)> for one flavour
-  └─ di_meson_correlator()   : compute direct / crossing / disconnected for two flavours
+  ├─ single_meson_correlator(): compute <M(t)M(0)> for one flavor
+  └─ di_meson_correlator()   : compute direct / crossing / disconnected for two flavors
 """
 
 from __future__ import annotations
@@ -28,9 +28,7 @@ from insertion_factory import gamma
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 from __init__ import (
     MESON_NAME_MAP,
-    DI_MESON_NAME_MAP,
-    BASE_PATH,
-    TAPE_PATH,
+    DI_MESON_NAME_MAP
 )
 
 
@@ -47,10 +45,11 @@ class DistillationObjectsIO:
         self.collection = collection
 
         self.dirs: Dict[str, str] = {
-            "light": os.path.join(TAPE_PATH, ens, "perams_h5"),
-            "meson": os.path.join(TAPE_PATH, ens, "meson_h5"),
-            "strange": os.path.join(BASE_PATH, ens, "perams_strange_sdb"),
-            "charm": os.path.join(BASE_PATH, ens, "perams_charm_sdb"),
+            "ens": os.path.join(self.base_path, ens),
+            "light": os.path.join(self.base_path, ens, "perams_h5"),
+            "meson": os.path.join(self.base_path, ens, "meson_h5"),
+            "strange": os.path.join(self.base_path, ens, "perams_strange_sdb"),
+            "charm": os.path.join(self.base_path, ens, "perams_charm_sdb"),
         }
 
         # will be filled later
@@ -74,7 +73,7 @@ class DistillationObjectsIO:
     def _get_contraction_settings(self) -> Dict[str, Any]:
         if self.ens is None:
             raise ValueError("Must specify ensemble!")
-        yaml_path = Path(self.dirs["light"]).parent / f"{self.ens}.ini.yml"
+        yaml_path = Path(self.dirs["ens"] / f"{self.ens}.ini.yml")
         if not yaml_path.is_file():
             raise FileNotFoundError(f"No extraction input file: {yaml_path}")
         with yaml_path.open() as f:
@@ -84,11 +83,16 @@ class DistillationObjectsIO:
     def get_contraction_params(self) -> Dict[str, Any]:
         settings = self._get_contraction_settings()
         params = settings["params"]
+        data_paths = settings["paths"]
+        self.self.base_path = data_paths['self.base_path']
         self.nvecs = params["nvecs"]
         self.lt = params["lt"]
         self.ntsrc = params["ntsrc"]
         self.tsrc_step = params["tsrc_step"]
         self.flavor_contents = params["flavor_contents"]
+
+        operator_list = settings["operator_list"]
+
         return params.copy()
 
     # ------------------------------------------------------------------
@@ -160,7 +164,7 @@ class DistillationObjectsIO:
             self.meson_elemental = None
             return
         # TODO REPLACE MOM AND DISP IN TWO_PT_CORR FROM OPERATORY_FACTORY
-        self.meson_elemental = load_elemental(meson_path, nvecs, mom="mom_0_0_0", disp="disp")
+        self.meson_elemental = load_elemental(meson_path, nvecs)
 
         # perambulators (only those needed)
         need_light = any("light" in fc for fc in self.flavor_contents)

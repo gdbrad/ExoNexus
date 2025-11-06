@@ -69,37 +69,6 @@ def correlator_matrix(
         '0 0 1': -1.0 
     } if irrep == 'A2' else {mom: 1.0 for mom in mom_list}  # A1 is symmetric
     
-    # Check and load files
-    peram_filename = f"peram_{nvec}_cfg{cfg_id}.h5"
-    peram_file = os.path.join(peram_dir, peram_filename)
-    if not os.path.isfile(peram_file):
-        print(f"Peram file {peram_file} not found. Skipping cfg {cfg_id}.")
-        return False
-    
-    meson_filename = f"meson-{nvec}_cfg{cfg_id}.h5"
-    meson_file = os.path.join(meson_dir, meson_filename)
-    if not os.path.isfile(meson_file):
-        print(f"Meson file {meson_file} not found. Skipping cfg {cfg_id}.")
-        return False
-    
-    peram = load_peram(peram_file, nt, nvec, ntsrc)
-    peram_flavors = {'light': peram}
-    unique_flavors = set(op.flavor for op in operators.values())
-    
-    if 'strange' in unique_flavors:
-        peram_strange_filename = f"peram_strange_nv{nvec}_cfg{cfg_id}.h5"
-        peram_strange_file = os.path.join(peram_strange_dir, peram_strange_filename)
-        if os.path.isfile(peram_strange_file):
-            peram_flavors['strange'] = load_peram(peram_strange_file, nt, nvec, ntsrc)
-    
-    if 'charm' in unique_flavors:
-        peram_charm_filename = f"peram_charm_{nvec}_cfg{cfg_id}.h5"
-        peram_charm_file = os.path.join(peram_charm_dir, peram_charm_filename)
-        if os.path.isfile(peram_charm_file):
-            peram_flavors['charm'] = load_peram(peram_charm_file, nt, nvec, ntsrc)
-
-    peram_back = {flavor: reverse_perambulator_time(peram) for flavor, peram in peram_flavors.items()}
-
     # Initialize output array based on averaging options
     if mom_avg and tsrc_avg:
         meson_matrix = np.zeros((nop, nop, nt), dtype=np.cdouble)

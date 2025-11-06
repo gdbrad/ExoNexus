@@ -5,6 +5,7 @@ b3.6-s64t64:
   # contraction slurm params
   paths:
     tape_path: '/p/data1/slnpp/bradley1'
+    base_path: '/p/scratch/exflash/su3-distillation-juwels'
 
   slurm:
     job_name: l40t64_pion_serial
@@ -26,8 +27,26 @@ b3.6-s64t64:
     flavor_contents: light_light,light_charm
     irrep: a1u
 
-  operator_list:
-  
+  base_operator_list:
+    - D_000
+    - D_100
+    - D_-100
+    - D_110
+    - D_-1-10
+    - D_111
+    - D_-1-1-1
+    - pi_000
+    - pi_100
+    - pi_-100
+    - pi_110
+    - pi_-1-10
+    - pi_111
+    - pi_-1-1-1
+
+
+
+
+
 
 
 
