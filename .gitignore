@@ -8,3 +8,4 @@ __pycache__
 exo/
 *.err
 *.log
+venv/

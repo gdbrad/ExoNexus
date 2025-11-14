@@ -4,21 +4,22 @@ from itertools import product
 import re
 from typing import List, Dict, Union, Tuple, Any
 
-I = np.array([[1, 0], [0, 1]])
-IDEN = np.identity(4)
+I = np.identity(4)
 from insertion_factory.gamma import gamma,gamma_i
 
-"""see https://arxiv.org/pdf/1607.07093 table 5"""
+"""see https://arxiv.org/pdf/1607.07093 table 5
+
+"""
 
 gamma_insertion_dict = {
     'a0': I,
     'pi': gamma[5],
     'pi2': gamma[4]@gamma[5],
     'b0': gamma[4],
-    'rho': gamma_i,
-    'rho2': gamma[4]@gamma_i,
-    'a1': gamma[5]@gamma_i,
-    'b1': gamma[4]@gamma[5]@gamma_i,
+    'rho': I, #gi
+    'rho2': gamma[4],#gi
+    'a1': gamma[5],#gi
+    'b1': gamma[4]@gamma[5]#gi
 
 }
 
@@ -39,6 +40,7 @@ class BareOperator:
     twoI: int
     mom: str
     gamma: Any
+    gamma_i: bool
     deriv: Union[str, None]
 
 def mommy(s: str) -> str:
@@ -48,6 +50,10 @@ def mommy(s: str) -> str:
 def parse_op(op: str) -> BareOperator:
     keys = op.split('_')
     gamma_mat = gamma_insertion_dict[keys[2]]
+    # if gamma_mat in ['rho','rho2','a1','b1']:
+    #     gamma_i= True
+    # else:
+    #     gamma_i = False
     deriv = derivative_dict.get(keys[3], keys[3]) if keys[3] != 'none' else None
     return BareOperator(
         name=op,
@@ -56,14 +62,21 @@ def parse_op(op: str) -> BareOperator:
         twoI=0,
         mom=mommy(keys[1]),
         gamma=gamma_mat,
+        gamma_i=gamma_i,
         deriv=deriv
     )
 
+#t1p_dict
+
 a1p_dict = {
+    'pi_none': '0mp',
+    'pi2_none': '0mp',
     'rho_nabla': '0pp',
-    'rho2_nabla': '0pp',
-    'a1_B': '0pm',
-    'b1_B': '0pp'
+    #'rho2_nabla': '0pp',
+    #'a1_B': '0pm',
+    #'b1_B': '0pp',
+    #'b1_nabla': '0mp'
+    
 }
 
 possible_insertions = list(a1p_dict.keys())

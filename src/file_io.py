@@ -1,225 +1,247 @@
-
-"""
-distillation_processor.py
-
-- DistillationObjectsIO      : I/O, path handling, loading of perambulators & elementals
-- DistillationProcessor     : inherits I/O, adds correlator logic
-  ├─ two_pt()                : orchestrator (class method)
-  ├─ single_meson_correlator(): compute <M(t)M(0)> for one flavor
-  └─ di_meson_correlator()   : compute direct / crossing / disconnected for two flavors
-"""
-
-from __future__ import annotations
-
-import argparse
-import datetime
+# file_io.py
 import os
-from pathlib import Path
-from typing import List, Dict, Tuple, Set, Any
-
+import datetime
 import h5py
 import numpy as np
 import yaml
+from typing import List, Dict, Tuple, Set, Any
+
 from insertion_factory import gamma
-
-# ----------------------------------------------------------------------
-# Package-specific imports
-# ----------------------------------------------------------------------
 from ingest_data import load_elemental, load_peram, reverse_perambulator_time
-from __init__ import (
-    MESON_NAME_MAP,
-    DI_MESON_NAME_MAP
-)
+from __init__ import MESON_NAME_MAP, DI_MESON_NAME_MAP
 
 
-# ----------------------------------------------------------------------
-# Base I/O class
-# ----------------------------------------------------------------------
 class DistillationObjectsIO:
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
     def __init__(self, ens: str | None = None, collection: str | None = None) -> None:
         self.ens = ens
-        if collection is None:
-            collection = str(datetime.datetime.now())
-            for c in " :.-":
-                collection = collection.replace(c, "_")
-        self.collection = collection
+        self.collection = (
+            collection
+            or str(datetime.datetime.now())
+            .replace(" ", "_")
+            .replace(":", "_")
+            .replace(".", "_")
+            .replace("-", "_")
+        )
+        self.base_path = "/p/scratch/exflash/su3-distillation-juwels"
 
         self.dirs: Dict[str, str] = {
-            "ens": os.path.join(self.base_path, ens),
-            "light": os.path.join(self.base_path, ens, "perams_h5"),
-            "meson": os.path.join(self.base_path, ens, "meson_h5"),
-            "strange": os.path.join(self.base_path, ens, "perams_strange_sdb"),
-            "charm": os.path.join(self.base_path, ens, "perams_charm_sdb"),
+            "ens": os.path.join("/p/scratch/exflash/dpi-contractions", ens or ""),
+            "light": os.path.join(self.base_path, ens or "", "perams_h5"),
+            "meson": os.path.join(self.base_path, ens or "", "meson_h5"),
+            "strange": os.path.join(self.base_path, ens or "", "perams_strange_sdb"),
+            "charm": os.path.join(self.base_path, ens or "", "perams_charm_sdb"),
         }
 
-        # will be filled later
+        # will be filled by get_contraction_params()
         self.nvecs: int | None = None
         self.lt: int | None = None
         self.ntsrc: int | None = None
         self.tsrc_step: int | None = None
         self.flavor_contents: List[str] = []
         self.cfg_id: int | None = None
-        self.data1: bool = False
 
-        # loaded data
-        self.meson_elemental: Any | None = None
-        self.peram_light: Any | None = None
-        self.peram_strange: Any | None = None
-        self.peram_charm: Any | None = None
+        # loaded objects – **always an ndarray or raise**
+        self.meson_elemental: np.ndarray | None = None
+        self.peram_light: np.ndarray | None = None
+        self.peram_strange: np.ndarray | None = None
+        self.peram_charm: np.ndarray | None = None
+
+        # Full meson file: (mom, disp, t, i, j)
+        self.meson_elemental_full: np.ndarray | None = None
+
+        # Cache: (mom, disp) → (t, i, j) block
+        self._elemental_cache: Dict[Tuple[str, str], np.ndarray] = {}
 
     # ------------------------------------------------------------------
     # YAML → contraction parameters
     # ------------------------------------------------------------------
     def _get_contraction_settings(self) -> Dict[str, Any]:
-        if self.ens is None:
-            raise ValueError("Must specify ensemble!")
-        yaml_path = Path(self.dirs["ens"] / f"{self.ens}.ini.yml")
-        if not yaml_path.is_file():
-            raise FileNotFoundError(f"No extraction input file: {yaml_path}")
-        with yaml_path.open() as f:
+        if not self.ens:
+            raise ValueError("Ensemble name required")
+        yaml_path = os.path.join(self.dirs["ens"], f"{self.ens}.ini.yml")
+        if not os.path.isfile(yaml_path):
+            raise FileNotFoundError(f"YAML config missing: {yaml_path}")
+        with open(yaml_path, "r") as f:
             data = yaml.safe_load(f)
         return data[self.ens]
 
     def get_contraction_params(self) -> Dict[str, Any]:
-        settings = self._get_contraction_settings()
-        params = settings["params"]
-        data_paths = settings["paths"]
-        self.self.base_path = data_paths['self.base_path']
-        self.nvecs = params["nvecs"]
-        self.lt = params["lt"]
-        self.ntsrc = params["ntsrc"]
-        self.tsrc_step = params["tsrc_step"]
-        self.flavor_contents = params["flavor_contents"]
-
-        operator_list = settings["operator_list"]
-
-        return params.copy()
+        s = self._get_contraction_settings()
+        p = s["params"]
+        self.nvecs = p["nvecs"]
+        self.lt = p["lt"]
+        self.ntsrc = p["ntsrc"]
+        self.tsrc_step = p["tsrc_step"]
+        self.flavor_contents = p["flavor_contents"]
+        return p.copy()
 
     # ------------------------------------------------------------------
-    # File-spec helpers
+    # Helper – full path for a flavor
     # ------------------------------------------------------------------
-    def file_specs(self) -> Dict[str, Tuple[str, str]]:
-        return {
-            "light": (self.dirs["light"], f"peram_{self.nvecs}_cfg{{cfg_id}}.h5"),
-            "meson": (self.dirs["meson"], f"meson-{self.nvecs}_cfg{{cfg_id}}.h5"),
-            "strange": (self.dirs["strange"], f"peram_strange_nv{self.nvecs}_cfg{{cfg_id}}.h5"),
-            "charm": (self.dirs["charm"], f"peram_charm_nv{self.nvecs}_cfg{{cfg_id}}.h5"),
-        }
+    def _file_path(self, flavor: str) -> str:
+        tmpl = {
+            "light": f"peram_{self.nvecs}_cfg{self.cfg_id}.h5",
+            "meson": f"meson-{self.nvecs}_cfg{self.cfg_id}.h5",
+            "strange": f"peram_strange_nv{self.nvecs}_cfg{self.cfg_id}.h5",
+            "charm": f"peram_charm_{self.nvecs}_cfg{self.cfg_id}.h5",
+        }[flavor]
+        return os.path.join(self.dirs[flavor], tmpl)
+    
+    # ------------------------------------------------------------------
+    # Load FULL meson file (all mom, all disp)
+    # ------------------------------------------------------------------
+    def _load_full_meson(self) -> np.ndarray:
+        path = self._file_path("meson")
+        print(f"[IO] Loading FULL meson file: {path}")
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Meson file missing: {path}")
 
-    def get_file_path(self, flavor: str = "meson") -> str | None:
-        specs = self.file_specs()
-        if flavor not in specs:
-            print(f"Flavor '{flavor}' not recognised.")
-            return None
-        directory, tmpl = specs[flavor]
-        path = Path(directory) / tmpl.format(cfg_id=self.cfg_id)
-        return str(path) if path.is_file() else None
+        # This assumes load_elemental can return *all* data when mom/disp=None
+        full = load_elemental(path, max_t=self.lt, n_vecs=self.nvecs, mom=None, disp=None)
+        if full is None:
+            raise ValueError("load_elemental returned None for full meson file")
+        print(f"[IO] Full meson loaded, shape={full.shape}")
+        return full
+    
+    # ------------------------------------------------------------------
+    # Extract (mom, disp) block ON DEMAND from full array
+    # ------------------------------------------------------------------
+    def get_elemental_block(self, mom: str, disp: str) -> np.ndarray:
+        key = (mom, disp)
+        if key in self._elemental_cache:
+            return self._elemental_cache[key]
+
+        if self.meson_elemental_full is None:
+            raise RuntimeError("Full meson file not loaded. Call load_for_system() first.")
+
+        # You need to know the **layout** of your HDF5 file.
+        # Assuming: dataset name = f"{mom}/{disp}" or similar.
+        # We'll use a **fallback**: let load_elemental handle indexing.
+        block = load_elemental(
+            self._file_path("meson"),
+            max_t=self.lt,
+            n_vecs=self.nvecs,
+            mom=mom,
+            disp=disp,
+        )
+        if block is None:
+            raise ValueError(f"Failed to extract {mom}/{disp}")
+        self._elemental_cache[key] = block
+        return block
 
     # ------------------------------------------------------------------
-    # Flavor logic
+    # Load a *single* elemental block (mom + disp) on demand
     # ------------------------------------------------------------------
-    def _get_required_flavors(self) -> Set[str]:
-        req: Set[str] = set()
+    # def _load_elemental_block(self) -> np.ndarray:
+    #     # key = (mom, disp)
+    #     # if key in self._elemental_cache:
+    #     #     return self._elemental_cache[key]
+
+    #     path = self._file_path("meson")
+    #     if not os.path.isfile(path):
+    #         raise FileNotFoundError(f"Meson file missing: {path}")
+
+    #     arr = load_elemental(
+    #         path,
+    #         max_t=self.lt,
+    #         n_vecs=self.nvecs,
+    #         # mom=mom,
+    #         # disp=disp,
+    #     )
+    #     # if arr is None:
+    #     #     raise ValueError(f"load_elemental returned None for mom={mom}, disp={disp}")
+    #     # self._elemental_cache[key] = arr
+    #     return arr
+
+    # ------------------------------------------------------------------
+    # Helper – load a single perambulator (class method)
+    # ------------------------------------------------------------------
+    def _load_peram(self, flav: str, attr: str) -> None:
+        p = self._file_path(flav)
+        print(f"[IO] Trying {flav} perambulator: {p}")
+        if not os.path.isfile(p):
+            raise FileNotFoundError(f"Required {flav} perambulator missing: {p}")
+
+        peram = load_peram(p, self.lt, self.nvecs, self.ntsrc, self.tsrc_step)
+        if peram is None:
+            raise ValueError(f"load_peram returned None for {p}")
+        setattr(self, attr, peram)
+        print(f"[IO] {flav} perambulator loaded, shape={peram.shape}")
+
+    # ------------------------------------------------------------------
+    # PUBLIC: load everything for a di-meson system (e.g. "Dpi")
+    # ------------------------------------------------------------------
+    def load_for_system(self, system_name: str) -> None:
+        """
+        Load meson elemental + *all* perambulators that belong to the
+        requested system. Raises a clear FileNotFoundError if a required
+        perambulator is missing.
+        """
+        if self.cfg_id is None:
+            raise RuntimeError("cfg_id not set – call get_contraction_params() first")
+        if not self.flavor_contents:
+            raise RuntimeError("flavor_contents not set – call get_contraction_params() first")
+
+        # ---------- 1. meson elemental ----------
+        # 1. Load FULL meson file
+        self.meson_elemental_full = self._load_full_meson()
+        # print(f"[IO] full meson_elemental dataset loaded, shape={self.meson_elemental_full.shape}")
+
+        # ---------- 2. which perambulators are needed? ----------
+        required: Set[str] = set()
         for fc in self.flavor_contents:
-            if fc == "light_light":
-                req.add("light")
-            elif fc == "light_strange":
-                req.update({"light", "strange"})
-            elif fc == "light_charm":
-                req.update({"light", "charm"})
-            elif fc == "charm_strange":
-                req.update({"charm", "strange"})
-            elif fc == "charm_charm":
-                req.add("charm")
-            else:
-                print(f"Unrecognised flavour content '{fc}', treating as light.")
-                req.add("light")
-        return req
+            if "light" in fc:
+                required.add("light")
+            if "strange" in fc:
+                required.add("strange")
+            if "charm" in fc:
+                required.add("charm")
 
-    @property
-    def required_flavors(self) -> Set[str]:
-        return self._get_required_flavors()
-
-    def get_meson_system_name(self) -> str:
-        if len(self.flavor_contents) == 1:
-            return MESON_NAME_MAP.get(self.flavor_contents[0], self.flavor_contents[0])
-        pair = tuple(self.flavor_contents)
-        return DI_MESON_NAME_MAP.get(pair, "_".join(self.flavor_contents))
+        # ---------- 3. load each required perambulator ----------
+        for flav in required:
+            if flav == "light":
+                self._load_peram("light", "peram_light")
+            elif flav == "strange":
+                self._load_peram("strange", "peram_strange")
+            elif flav == "charm":
+                self._load_peram("charm", "peram_charm")
 
     # ------------------------------------------------------------------
-    # Load everything for a single cfg
+    # Build forward / backward perambulator map
     # ------------------------------------------------------------------
-    def load_distillation_objects(self) -> None:
-        if None in (self.nvecs, self.lt, self.ntsrc, self.tsrc_step, self.cfg_id):
-            raise RuntimeError("Call get_contraction_params() first!")
-
-        LT = self.lt
-        nvecs = self.nvecs
-        num_tsrc = self.ntsrc
-        tsrc_step = self.tsrc_step
-
-        # meson elemental
-        meson_path = self.get_file_path("meson")
-        if meson_path is None:
-            self.meson_elemental = None
-            return
-        # TODO REPLACE MOM AND DISP IN TWO_PT_CORR FROM OPERATORY_FACTORY
-        self.meson_elemental = load_elemental(meson_path, nvecs)
-
-        # perambulators (only those needed)
-        need_light = any("light" in fc for fc in self.flavor_contents)
-        need_strange = any("strange" in fc for fc in self.flavor_contents)
-        need_charm = any("charm" in fc for fc in self.flavor_contents)
-
-        if need_light:
-            p = self.get_file_path("light")
-            if p:
-                self.peram_light = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
-        if need_strange:
-            p = self.get_file_path("strange")
-            if p:
-                self.peram_strange = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
-        if need_charm:
-            p = self.get_file_path("charm")
-            if p:
-                self.peram_charm = load_peram(p, LT, nvecs, num_tsrc, tsrc_step)
-
-    # ------------------------------------------------------------------
-    # Build forward / backward map (used by both correlator methods)
-    # ------------------------------------------------------------------
-    def _peram_data(self) -> Dict[str, Tuple[Any, Any]]:
-        data: Dict[str, Tuple[Any, Any]] = {}
-        specs = self.file_specs()
+    def _peram_data(self) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Return a dictionary mapping flavor combination → (forward, backward) perambulators.
+        The backward perambulator is the time-reversed version.
+        """
+        data: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
 
         for fc in self.flavor_contents:
+            # ----- decide forward perambulator -----
             if fc == "light_light":
-                peram = self.peram_light
-                back = reverse_perambulator_time(self.peram_light)
-                files = (specs["light"][0], specs["light"][0])
-            elif fc == "light_strange":
-                peram = self.peram_light
-                back = reverse_perambulator_time(self.peram_strange)
-                files = (specs["light"][0], specs["strange"][0])
-            elif fc == "light_charm":
-                peram = self.peram_light
-                back = reverse_perambulator_time(self.peram_charm)
-                files = (specs["light"][0], specs["charm"][0])
-            elif fc == "charm_strange":
-                peram = self.peram_charm
-                back = reverse_perambulator_time(self.peram_strange)
-                files = (specs["charm"][0], specs["strange"][0])
+                forward = self.peram_light
+                reverse_from = self.peram_light
+            elif fc in ("light_charm", "charm_light"):
+                forward = self.peram_light
+                reverse_from = self.peram_charm
             elif fc == "charm_charm":
-                peram = self.peram_charm
-                back = reverse_perambulator_time(self.peram_charm)
-                files = (specs["charm"][0], specs["charm"][0])
+                forward = self.peram_charm
+                reverse_from = self.peram_charm
             else:
-                peram = self.peram_light
-                back = reverse_perambulator_time(self.peram_light)
-                files = (specs["light"][0], specs["light"][0])
+                raise ValueError(f"Unsupported flavor combination: {fc}")
 
-            if peram is None or back is None:
-                raise FileNotFoundError(f"Missing perambulator for {fc}")
+            # ----- sanity check -----
+            if forward is None:
+                raise RuntimeError(f"Forward perambulator for {fc} is None – was load_for_system() called?")
+            if reverse_from is None:
+                raise RuntimeError(f"Reverse source perambulator for {fc} is None – was load_for_system() called?")
 
-            data[fc] = (peram, back)
-            print(f"Loaded {fc}: forward {files[0]}, backward {files[1]}")
+            # ----- build backward perambulator -----
+            backward = reverse_perambulator_time(reverse_from)
+
+            data[fc] = (forward, backward)
+
         return data
