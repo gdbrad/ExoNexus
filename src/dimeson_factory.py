@@ -30,7 +30,7 @@ derivative_dict = {
     'D': 'D'
 }
 
-flavor_dict = {'D': 'charm_light', 'pi': 'light_light'}
+flavor_dict = {'D': 'charm_light', 'pion': 'light_light'}
 
 @dataclass
 class BareOperator:
@@ -71,7 +71,7 @@ def parse_op(op: str) -> BareOperator:
 a1p_dict = {
     'pi_none': '0mp',
     'pi2_none': '0mp',
-    'rho_nabla': '0pp',
+    #'rho_nabla': '0pp',
     #'rho2_nabla': '0pp',
     #'a1_B': '0pm',
     #'b1_B': '0pp',
@@ -92,7 +92,7 @@ moms_list = [
     [(1, 0, 0),(-1, 0, 0)]
 ]
 
-print(moms_list)
+#print(moms_list)
 #moms_list = 
 
 @dataclass
@@ -119,7 +119,7 @@ class DiMesonOperator:
                     op1 = parse_op(op1_str)
                     for ins2 in possible_insertions:
                         g2, d2 = ins2.split('_')
-                        op2_str = f"pi_{mom2_str}_{g2}_{d2}_a1p"
+                        op2_str = f"pion_{mom2_str}_{g2}_{d2}_a1p"
                         op2 = parse_op(op2_str)
                         dim_name = f"{op1.name}X{op2.name}"
                         dim = cls(op1=op1, op2=op2, name=dim_name, F='a1p')
@@ -128,5 +128,22 @@ class DiMesonOperator:
             for i, dim in enumerate(di_mesons):
                 print(f"op {i+1}: {dim.name}")
             operators: Dict[str, 'DiMesonOperator'] = {dim.name: dim for dim in di_mesons}
-            print(f"Created operators dict with {len(operators)} entries.")
+            # ADD THIS: ordered list + name lookup
+            cls._ordered_names = list(operators.keys())        # e.g. ["D_000_pi_none_a1pXpi_000_pi_none_a1p", ...]
+            cls._name_to_idx = {name: i for i, name in enumerate(cls._ordered_names)}
+            cls._idx_to_name = {i: name for i, name in enumerate(cls._ordered_names)}
+
+            print(f"DiMesonOperator: registered {len(cls._ordered_names)} operators with integer mapping")
             return operators
+
+    @classmethod
+    def name_to_index(cls, name: str) -> int:
+        return cls._name_to_idx[name]
+
+    @classmethod
+    def index_to_name(cls, idx: int) -> str:
+        return cls._idx_to_name[idx]
+
+    @classmethod
+    def num_operators(cls) -> int:
+        return len(cls._ordered_names)

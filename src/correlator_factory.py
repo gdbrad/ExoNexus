@@ -391,22 +391,23 @@ class CorrelatorFactory(DistillationObjectsIO):
         cls,
         operators: Dict[str, DiMesonOperator],
         proc: "CorrelatorFactory",
-        h5_group: h5py.Group,           # ← not used any more (kept for signature)
+        h5_group: h5py.Group,
         peram_data: Dict[str, Tuple[np.ndarray, np.ndarray]],
         tsrc_avg: bool,
         three_bar: bool,
     ) -> None:
-
         f1, f2 = proc.flavor_contents
         identical = f1 == f2
         LT = proc.lt
         num_tsrc = proc.ntsrc
-        num_op = len(operators)
+        tsrc_step = proc.tsrc_step
 
-        print(f"\n[PER-PAIR OUTPUT] Writing one file per operator pair → {num_op**2} files total")
+        op_list = list(operators.values())
+        num_op = len(op_list)
+        print(f"[MATRIX] Building {num_op}×{num_op} di-meson matrix + individual D and π correlators")
 
-        p1, p1b = peram_data[f1]
-        p2, p2b = peram_data[f2]
+        p1, p1b = peram_data[f1]   # D
+        p2, p2b = peram_data[f2]   # π
 
         def contract_op(op: BareOperator, t: int, mom: str):
             if op.deriv is None:
@@ -417,107 +418,111 @@ class CorrelatorFactory(DistillationObjectsIO):
             return proc.contract_B_D(op, t, mom, add=add)
 
         # ------------------------------------------------------------------
-        # Main loop – one file per (src, snk) pair
+        # Precompute phi_0 for all SOURCE operators (use index as key!)
         # ------------------------------------------------------------------
+        phi0_D_cache  = [None] * num_op   # phi_0 for D  part of source op
+        phi0_pi_cache = [None] * num_op   # phi_0 for π  part of source op
+
+        for src_idx, src_op in enumerate(op_list):
+            phi0_D_cache[src_idx]  = contract_op(src_op.op1, 0, src_op.op1.mom)
+            phi0_pi_cache[src_idx] = contract_op(src_op.op2, 0, src_op.op2.mom)
+
+        # Individual meson accumulators
+        D_corr_acc  = np.zeros((num_tsrc, LT), dtype=np.float64)
+        pi_corr_acc = np.zeros((num_tsrc, LT), dtype=np.float64)
+
         total_pairs = num_op * num_op
         done = 0
 
-        for src_idx, (src_name, src_op) in enumerate(operators.items()):
-            phi_0_D  = contract_op(src_op.op1, 0, src_op.op1.mom)
-            phi_0_pi = contract_op(src_op.op2, 0, src_op.op2.mom)
+        for src_idx, src_op in enumerate(op_list):
+            phi_0_D_src  = phi0_D_cache[src_idx]
+            phi_0_pi_src = phi0_pi_cache[src_idx]
 
-            for snk_idx, (snk_name, snk_op) in enumerate(operators.items()):
+            for snk_idx, snk_op in enumerate(op_list):
                 done += 1
-                pair_label = f"{src_op.name}_X_{snk_op.name}"
-                outfile = f"Dpi_cfg{proc.cfg_id:04d}_{pair_label}.h5"
+                if done % 100 == 0 or done == total_pairs:
+                    print(f"   → {done}/{total_pairs} pairs processed")
 
-                print(f"[{done:03d}/{total_pairs}] → {outfile}")
+                group_name = f"op{src_idx:02d}_X_op{snk_idx:02d}"
+                grp = h5_group.create_group(group_name)
+                grp.attrs["src_index"] = src_idx
+                grp.attrs["snk_index"] = snk_idx
+                grp.attrs["src_name"]  = src_op.name
+                grp.attrs["snk_name"]  = snk_op.name
 
-                # Temporary arrays for this pair only
-                direct   = np.zeros((num_tsrc, LT), dtype=np.cdouble)
+                direct = np.zeros((num_tsrc, LT), dtype=np.cdouble)
                 crossing = np.zeros((num_tsrc, LT), dtype=np.cdouble) if not identical else None
-                disc     = np.zeros((num_tsrc, LT), dtype=np.cdouble) if three_bar else None
 
-                # ---- Contraction for this single pair ----
                 for tsrc_idx in range(num_tsrc):
                     for t in range(LT):
                         phi_t_D  = contract_op(snk_op.op1, t, snk_op.op1.mom)
                         phi_t_pi = contract_op(snk_op.op2, t, snk_op.op2.mom)
 
-                        # Direct
+                        # Direct term
                         m1 = contract("ijab,jkbc,klcd,lida",
-                                      phi_t_D,  p1[tsrc_idx, t, :, :, :, :],
-                                      phi_0_D,  p1b[tsrc_idx, t, :, :, :, :], optimize="optimal")
+                                    phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p1b[tsrc_idx, t],
+                                    optimize="optimal")
                         m2 = contract("ijab,jkbc,klcd,lida",
-                                      phi_t_pi, p2[tsrc_idx, t, :, :, :, :],
-                                      phi_0_pi, p2b[tsrc_idx, t, :, :, :, :], optimize="optimal")
+                                    phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p2b[tsrc_idx, t],
+                                    optimize="optimal")
                         direct[tsrc_idx, t] = m1 * m2
+
+                        # Accumulate individual meson correlators (only on diagonal)
+                        if src_idx == snk_idx:
+                            D_corr_acc[tsrc_idx, t]  += m1.real
+                            pi_corr_acc[tsrc_idx, t] += m2.real
 
                         if not identical:
                             m1c = contract("ijab,jkbc,klcd,lida",
-                                           phi_t_D, p1[tsrc_idx, t, :, :, :, :],
-                                           phi_0_D, p2b[tsrc_idx, t, :, :, :, :], optimize="optimal")
+                                        phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p2b[tsrc_idx, t],
+                                        optimize="optimal")
                             m2c = contract("ijab,jkbc,klcd,lida",
-                                           phi_t_pi, p2[tsrc_idx, t, :, :, :, :],
-                                           phi_0_pi, p1b[tsrc_idx, t, :, :, :, :], optimize="optimal")
+                                        phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p1b[tsrc_idx, t],
+                                        optimize="optimal")
                             crossing[tsrc_idx, t] = m1c * m2c
 
-                        if three_bar:
-                            loop = contract("siab,sjcd->abcd",
-                                            p2[tsrc_idx, t, :, :, :, :],
-                                            p2b[tsrc_idx, t, :, :, :, :], optimize="optimal")
-                            disc[tsrc_idx, t] = m1 * contract("ijab,abcd->", phi_t_D, loop, optimize="optimal")
-
-                # ---- Post-processing ----
+                # Post-processing
                 direct = direct.real
                 if crossing is not None:
                     crossing = crossing.real
-                if disc is not None:
-                    disc = disc.real
 
                 if tsrc_avg:
                     for i in range(num_tsrc):
-                        shift = -proc.tsrc_step * i
-                        direct[i] = np.roll(direct[i], shift, axis=-1)
+                        shift = -tsrc_step * i
+                        direct[i] = np.roll(direct[i], shift)
                         if crossing is not None:
-                            crossing[i] = np.roll(crossing[i], shift, axis=-1)
-                        if disc is not None:
-                            disc[i] = np.roll(disc[i], shift, axis=-1)
+                            crossing[i] = np.roll(crossing[i], shift)
                     direct = direct.mean(axis=0)
-                    crossing = crossing.mean(axis=0) if crossing is not None else None
-                    disc = disc.mean(axis=0) if disc is not None else None
+                    if crossing is not None:
+                        crossing = crossing.mean(axis=0)
 
-                # Final irreps
-                if identical:
-                    c15 = direct
-                    c6  = direct
-                    c3b = direct - (8.0/3.0)*disc if three_bar else None
-                else:
-                    c15 = direct - crossing
-                    c6  = direct + crossing
-                    c3b = direct + (1.0/3.0)*crossing - (8.0/3.0)*disc if three_bar else None
+                # Irrep projection
+                c15 = direct - (crossing if crossing is not None else 0.0)
+                c6  = direct + (crossing if crossing is not None else 0.0)
 
-                # ---- Write one clean file ----
-                suffix = "_tsrc_avg" if tsrc_avg else ""
-                with h5py.File(outfile, "w", libver='latest') as f:
-                    f.create_dataset("direct",      data=direct)
-                    if not identical:
-                        f.create_dataset("crossing", data=crossing)
-                    f.create_dataset("15",          data=c15)
-                    f.create_dataset("6",           data=c6)
-                    if three_bar:
-                        f.create_dataset("disconnected", data=disc)
-                        f.create_dataset("3_bar",        data=c3b)
+                # Write di-meson datasets
+                grp.create_dataset("direct", data=direct)
+                if not identical:
+                    grp.create_dataset("crossing", data=crossing)
+                grp.create_dataset("15", data=c15)
+                grp.create_dataset("6",  data=c6)
 
-                    # Metadata
-                    f.attrs["source_operator"] = src_op.name
-                    f.attrs["sink_operator"]   = snk_op.name
-                    f.attrs["cfg"]             = proc.cfg_id
-                    f.attrs["tsrc_avg"]        = tsrc_avg
-                    f.attrs["three_bar"]       = three_bar
+        # ------------------------------------------------------------------
+        # Finalize and write individual meson correlators
+        # ------------------------------------------------------------------
+        D_corr  = D_corr_acc  / num_op   # average over all diagonal operators
+        pi_corr = pi_corr_acc / num_op
 
-                print(f"    → written {os.path.getsize(outfile)/1024:.1f} kB")
+        if tsrc_avg:
+            for i in range(num_tsrc):
+                shift = -tsrc_step * i
+                D_corr[i]  = np.roll(D_corr[i],  shift)
+                pi_corr[i] = np.roll(pi_corr[i], shift)
+            D_corr  = D_corr.mean(axis=0)
+            pi_corr = pi_corr.mean(axis=0)
 
-        print(f"\nALL DONE! {total_pairs} clean HDF5 files written.")
-        print(f"   Directory now contains files like:")
-        print(f"   Dpi_cfg{proc.cfg_id:04d}_D_000_rho_nabla_a1p_X_pi_000_rho_nabla_a1p.h5")
+        h5_group.create_dataset("D_correlator",  data=D_corr)
+        h5_group.create_dataset("pi_correlator", data=pi_corr)
+
+        print(f"\n[SUCCESS] Full {num_op}×{num_op} matrix + D_correlator + pi_correlator written!")
+        print("   Groups: op00_X_op00 ... op15_X_op15 (or up to op35_X_op35 when you have all 36)")
