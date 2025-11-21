@@ -1,4 +1,4 @@
-# two_pt_corr.py  (FINAL, ROBUST VERSION)
+# two_pt_corr.py 
 import argparse
 import h5py
 import yaml
@@ -40,7 +40,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Compute Dπ two-point correlator matrices.")
     parser.add_argument("--yaml_file", type=str, required=True, help="Path to ensemble YAML")
     parser.add_argument("--cfg_id",    type=int, required=True, help="Configuration number")
-    parser.add_argument("--outdir",    type=str, default="results", help="Output directory (default: results/)")
+    parser.add_argument("--outdir",    type=str, default="results-multi-run", help="Output directory (default: results/)")
     args = parser.parse_args()
 
     yaml_path = Path(args.yaml_file)
@@ -56,7 +56,7 @@ def main() -> None:
     # Robust output directory + filename
     # ------------------------------------------------------------------
     outdir = Path(args.outdir)
-    outdir.mkdir(exist_ok=True)          # <-- THIS FIXES YOUR ERROR
+    outdir.mkdir(exist_ok=True)          
 
     timestamp = datetime.now().strftime("%Y-%m-%d")
     ens = proc.ens
@@ -73,7 +73,7 @@ def main() -> None:
     # Compute and write
     # ------------------------------------------------------------------
     with h5py.File(out_file, "w", libver='latest') as f:
-        grp = f.create_group("Ptot_000_a1p")   # <-- matches your current files
+        grp = f.create_group("Ptot_000_a1p")   
         success = CorrelatorFactory.two_pt(
             proc=proc,
             h5_group=grp,

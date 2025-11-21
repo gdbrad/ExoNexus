@@ -71,8 +71,8 @@ def parse_op(op: str) -> BareOperator:
 a1p_dict = {
     'pi_none': '0mp',
     'pi2_none': '0mp',
-    #'rho_nabla': '0pp',
-    #'rho2_nabla': '0pp',
+    'rho_nabla': '0pp',
+    'rho2_nabla': '0pp',
     #'a1_B': '0pm',
     #'b1_B': '0pp',
     #'b1_nabla': '0mp'
@@ -128,22 +128,11 @@ class DiMesonOperator:
             for i, dim in enumerate(di_mesons):
                 print(f"op {i+1}: {dim.name}")
             operators: Dict[str, 'DiMesonOperator'] = {dim.name: dim for dim in di_mesons}
-            # ADD THIS: ordered list + name lookup
-            cls._ordered_names = list(operators.keys())        # e.g. ["D_000_pi_none_a1pXpi_000_pi_none_a1p", ...]
+
+            # THIS LINE WAS MISSING — THIS IS THE FIX
+            cls._ordered_names = list(operators.keys())
             cls._name_to_idx = {name: i for i, name in enumerate(cls._ordered_names)}
             cls._idx_to_name = {i: name for i, name in enumerate(cls._ordered_names)}
 
             print(f"DiMesonOperator: registered {len(cls._ordered_names)} operators with integer mapping")
             return operators
-
-    @classmethod
-    def name_to_index(cls, name: str) -> int:
-        return cls._name_to_idx[name]
-
-    @classmethod
-    def index_to_name(cls, idx: int) -> str:
-        return cls._idx_to_name[idx]
-
-    @classmethod
-    def num_operators(cls) -> int:
-        return len(cls._ordered_names)

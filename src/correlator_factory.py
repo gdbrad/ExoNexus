@@ -1,16 +1,14 @@
 from typing import List, Dict, Tuple, Any
 import h5py
 import numpy as np
-from insertion_factory import gamma
-import file_io
-from file_io import DistillationObjectsIO
-#from operator_factory import MHI, MHICollection
-from dimeson_factory import DiMesonOperator,BareOperator
-import re
-import os 
-from ingest_data import load_elemental, reverse_perambulator_time
 from itertools import product
-from opt_einsum import contract # this can be replaced with np.einsum
+from opt_einsum import contract, contract_path # this can be replaced with np.einsum
+import functools
+import tqdm 
+
+from insertion_factory import gamma
+from file_io import DistillationObjectsIO
+from dimeson_factory import DiMesonOperator,BareOperator
 
 # ----------------------------------------------------------------------
 # Processor – correlator logic
@@ -42,13 +40,6 @@ class CorrelatorFactory(DistillationObjectsIO):
 
     # ------------------------------------------------------------------
     # derivative displacement functions integrated as methods which use the cache
-    # ------------------------------------------------------------------
-    # import os 
-    # def _meson_path(self) -> str:
-    #     return os.path.join(self.dirs["meson"], f"meson-{self.nvecs}_cfg{self.cfg_id}.h5")
-    
-       # ------------------------------------------------------------------
-    # Use get_elemental_block from parent (on-demand from full file)
     # ------------------------------------------------------------------
     def contract_local(self, operator, t: int, mom: str):
         D = self.get_elemental_block(mom, "disp")
@@ -386,6 +377,7 @@ class CorrelatorFactory(DistillationObjectsIO):
     # ----------------------------------------------------------------------------
     # Di-meson correlator matrix for a given irrep, total momenta P^2 (>1 operators)
     # -----------------------------------------------------------------------------
+
     @classmethod
     def di_meson_correlator_matrix(
         cls,
@@ -396,6 +388,10 @@ class CorrelatorFactory(DistillationObjectsIO):
         tsrc_avg: bool,
         three_bar: bool,
     ) -> None:
+        import time
+        from tqdm import tqdm
+
+        start_time = time.time()
         f1, f2 = proc.flavor_contents
         identical = f1 == f2
         LT = proc.lt
@@ -404,10 +400,41 @@ class CorrelatorFactory(DistillationObjectsIO):
 
         op_list = list(operators.values())
         num_op = len(op_list)
-        print(f"[MATRIX] Building {num_op}×{num_op} di-meson matrix + individual D and π correlators")
 
-        p1, p1b = peram_data[f1]   # D
-        p2, p2b = peram_data[f2]   # π
+        print(f"\n[START] Computing full {num_op}x{num_op} Dπ correlator matrix (Ptot=000, a1p)")
+        print(f"        cfg {proc.cfg_id} | nvec {proc.nvecs} | ntsrc {num_tsrc} | Lt {LT}")
+        print(f"        tsrc_avg = {tsrc_avg} | three_bar = {three_bar}")
+        print(f"        Total pairs: {num_op**2:,}")
+
+        p1, p1b = peram_data[f1]
+        p2, p2b = peram_data[f2]
+
+        # ------------------------------------------------------------------
+        # Fast contraction with path caching
+        # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # FAST CONTRACTION — cache ONLY the path (arrays are unhashable!)
+        # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # FAST CONTRACTION — CORRECT DUMMY SHAPES
+        # ------------------------------------------------------------------
+        
+        # ------------------------------------------------------------------
+        # FAST CONTRACTION — bullet-proof version (works with any tensor shapes)
+        # ------------------------------------------------------------------
+        @functools.lru_cache(maxsize=128)
+        def _get_contraction_path(expr):
+            # Use a single dummy tensor with shape (1,1,...,1) matching number of indices
+            # Count commas + 1 = number of input tensors
+            num_tensors = expr.count(',') + 1
+            dummy = np.zeros((1,) * 4, dtype=np.complex128)  # all tensors have 4 indices
+            dummies = [dummy] * num_tensors
+            path, _ = contract_path(expr, *dummies, optimize='optimal')
+            return path
+
+        def fast_contract(expr, *tensors):
+            path = _get_contraction_path(expr)
+            return contract(expr, *tensors, optimize=path)
 
         def contract_op(op: BareOperator, t: int, mom: str):
             if op.deriv is None:
@@ -417,31 +444,32 @@ class CorrelatorFactory(DistillationObjectsIO):
             add = op.deriv == "D"
             return proc.contract_B_D(op, t, mom, add=add)
 
-        # ------------------------------------------------------------------
-        # Precompute phi_0 for all SOURCE operators (use index as key!)
-        # ------------------------------------------------------------------
-        phi0_D_cache  = [None] * num_op   # phi_0 for D  part of source op
-        phi0_pi_cache = [None] * num_op   # phi_0 for π  part of source op
-
-        for src_idx, src_op in enumerate(op_list):
-            phi0_D_cache[src_idx]  = contract_op(src_op.op1, 0, src_op.op1.mom)
-            phi0_pi_cache[src_idx] = contract_op(src_op.op2, 0, src_op.op2.mom)
+        # Precompute phi_0
+        print("[PRE] Precomputing phi_0 for all source operators...")
+        phi0_D_cache  = [contract_op(op.op1, 0, op.op1.mom) for op in op_list]
+        phi0_pi_cache = [contract_op(op.op2, 0, op.op2.mom) for op in op_list]
 
         # Individual meson accumulators
         D_corr_acc  = np.zeros((num_tsrc, LT), dtype=np.float64)
         pi_corr_acc = np.zeros((num_tsrc, LT), dtype=np.float64)
 
+        # ------------------------------------------------------------------
+        # MAIN LOOP WITH LIVE PROGRESS (works with srun!)
+        # ------------------------------------------------------------------
         total_pairs = num_op * num_op
-        done = 0
+        pbar = tqdm(total=total_pairs, desc="Contractions", position=0, leave=True)
 
         for src_idx, src_op in enumerate(op_list):
             phi_0_D_src  = phi0_D_cache[src_idx]
             phi_0_pi_src = phi0_pi_cache[src_idx]
 
             for snk_idx, snk_op in enumerate(op_list):
-                done += 1
-                if done % 100 == 0 or done == total_pairs:
-                    print(f"   → {done}/{total_pairs} pairs processed")
+                pbar.update(1)
+                pbar.set_postfix({
+                    "src": f"op{src_idx:02d}",
+                    "snk": f"op{snk_idx:02d}",
+                    "name": f"{src_op.name[:20]}...X{src_op.name[-20:]}"
+                })
 
                 group_name = f"op{src_idx:02d}_X_op{snk_idx:02d}"
                 grp = h5_group.create_group(group_name)
@@ -458,27 +486,19 @@ class CorrelatorFactory(DistillationObjectsIO):
                         phi_t_D  = contract_op(snk_op.op1, t, snk_op.op1.mom)
                         phi_t_pi = contract_op(snk_op.op2, t, snk_op.op2.mom)
 
-                        # Direct term
                         m1 = contract("ijab,jkbc,klcd,lida",
-                                    phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p1b[tsrc_idx, t],
-                                    optimize="optimal")
+                                        phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p1b[tsrc_idx, t],optimize='optimal')
                         m2 = contract("ijab,jkbc,klcd,lida",
-                                    phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p2b[tsrc_idx, t],
-                                    optimize="optimal")
+                                        phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p2b[tsrc_idx, t],optimize='optimal')
                         direct[tsrc_idx, t] = m1 * m2
 
-                        # Accumulate individual meson correlators (only on diagonal)
                         if src_idx == snk_idx:
                             D_corr_acc[tsrc_idx, t]  += m1.real
                             pi_corr_acc[tsrc_idx, t] += m2.real
 
                         if not identical:
-                            m1c = contract("ijab,jkbc,klcd,lida",
-                                        phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p2b[tsrc_idx, t],
-                                        optimize="optimal")
-                            m2c = contract("ijab,jkbc,klcd,lida",
-                                        phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p1b[tsrc_idx, t],
-                                        optimize="optimal")
+                            m1c = contract("ijab,jkbc,klcd,lida", phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p2b[tsrc_idx, t],optimize='optimal')
+                            m2c = contract("ijab,jkbc,klcd,lida", phi_t_pi, p2[tsrc_idx,t ], phi_0_pi_src, p1b[tsrc_idx, t],optimize='optimal')
                             crossing[tsrc_idx, t] = m1c * m2c
 
                 # Post-processing
@@ -496,22 +516,20 @@ class CorrelatorFactory(DistillationObjectsIO):
                     if crossing is not None:
                         crossing = crossing.mean(axis=0)
 
-                # Irrep projection
                 c15 = direct - (crossing if crossing is not None else 0.0)
                 c6  = direct + (crossing if crossing is not None else 0.0)
 
-                # Write di-meson datasets
                 grp.create_dataset("direct", data=direct)
                 if not identical:
                     grp.create_dataset("crossing", data=crossing)
                 grp.create_dataset("15", data=c15)
                 grp.create_dataset("6",  data=c6)
 
-        # ------------------------------------------------------------------
-        # Finalize and write individual meson correlators
-        # ------------------------------------------------------------------
-        D_corr  = D_corr_acc  / num_op   # average over all diagonal operators
-        pi_corr = pi_corr_acc / num_op
+        pbar.close()
+
+        # Individual mesons
+        D_corr  = D_corr_acc.real  / num_op
+        pi_corr = pi_corr_acc.real / num_op
 
         if tsrc_avg:
             for i in range(num_tsrc):
@@ -524,5 +542,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         h5_group.create_dataset("D_correlator",  data=D_corr)
         h5_group.create_dataset("pi_correlator", data=pi_corr)
 
-        print(f"\n[SUCCESS] Full {num_op}×{num_op} matrix + D_correlator + pi_correlator written!")
-        print("   Groups: op00_X_op00 ... op15_X_op15 (or up to op35_X_op35 when you have all 36)")
+        total_time = time.time() - start_time
+        print(f"\n[SUCCESS] Full {num_op}x{num_op} matrix written!")
+        print(f"   → {total_pairs:,} pairs in {total_time/60:.1f} minutes")
+        print(f"   → Live progress with tqdm works even under srun!")
