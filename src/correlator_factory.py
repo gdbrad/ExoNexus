@@ -422,19 +422,19 @@ class CorrelatorFactory(DistillationObjectsIO):
         # ------------------------------------------------------------------
         # FAST CONTRACTION — bullet-proof version (works with any tensor shapes)
         # ------------------------------------------------------------------
-        @functools.lru_cache(maxsize=128)
-        def _get_contraction_path(expr):
-            # Use a single dummy tensor with shape (1,1,...,1) matching number of indices
-            # Count commas + 1 = number of input tensors
-            num_tensors = expr.count(',') + 1
-            dummy = np.zeros((1,) * 4, dtype=np.complex128)  # all tensors have 4 indices
-            dummies = [dummy] * num_tensors
-            path, _ = contract_path(expr, *dummies, optimize='optimal')
-            return path
+        # @functools.lru_cache(maxsize=128)
+        # def _get_contraction_path(expr):
+        #     # Use a single dummy tensor with shape (1,1,...,1) matching number of indices
+        #     # Count commas + 1 = number of input tensors
+        #     num_tensors = expr.count(',') + 1
+        #     dummy = np.zeros((1,) * 4, dtype=np.complex128)  # all tensors have 4 indices
+        #     dummies = [dummy] * num_tensors
+        #     path, _ = contract_path(expr, *dummies, optimize='optimal')
+        #     return path
 
-        def fast_contract(expr, *tensors):
-            path = _get_contraction_path(expr)
-            return contract(expr, *tensors, optimize=path)
+        # def fast_contract(expr, *tensors):
+        #     path = _get_contraction_path(expr)
+        #     return contract(expr, *tensors, optimize=path)
 
         def contract_op(op: BareOperator, t: int, mom: str):
             if op.deriv is None:

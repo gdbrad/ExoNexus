@@ -72,7 +72,7 @@ a1p_dict = {
     'pi_none': '0mp',
     'pi2_none': '0mp',
     'rho_nabla': '0pp',
-    'rho2_nabla': '0pp',
+    #'rho2_nabla': '0pp',
     #'a1_B': '0pm',
     #'b1_B': '0pp',
     #'b1_nabla': '0mp'

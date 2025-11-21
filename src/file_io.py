@@ -25,14 +25,14 @@ class DistillationObjectsIO:
             .replace(".", "_")
             .replace("-", "_")
         )
-        self.base_path = "/p/scratch/exflash/su3-distillation-juwels"
+        self.base_path = "/p/scratch/exotichadrons/su3-distillation/data"
 
         self.dirs: Dict[str, str] = {
             "ens": os.path.join("/p/scratch/exflash/dpi-contractions", ens or ""),
             "light": os.path.join(self.base_path, ens or "", "perams_h5"),
             "meson": os.path.join(self.base_path, ens or "", "meson_h5"),
-            "strange": os.path.join(self.base_path, ens or "", "perams_strange_sdb"),
-            "charm": os.path.join(self.base_path, ens or "", "perams_charm_sdb"),
+            "strange": os.path.join(self.base_path, ens or "", "perams_strange_sdb"), # only for su2
+            "charm": os.path.join(self.base_path, ens or "", "perams_charm_h5"),
         }
 
         # will be filled by get_contraction_params()
@@ -46,7 +46,7 @@ class DistillationObjectsIO:
         # loaded objects – **always an ndarray or raise**
         self.meson_elemental: np.ndarray | None = None
         self.peram_light: np.ndarray | None = None
-        self.peram_strange: np.ndarray | None = None
+        self.peram_strange: np.ndarray | None = None # only for su2 
         self.peram_charm: np.ndarray | None = None
 
         # Full meson file: (mom, disp, t, i, j)
