@@ -86,7 +86,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         )
         return phi
     
-        # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Orchestrator
     # ------------------------------------------------------------------
     @classmethod
@@ -509,9 +509,9 @@ class CorrelatorFactory(DistillationObjectsIO):
                 c15 = direct - (crossing if crossing is not None else 0.0)
                 c6  = direct + (crossing if crossing is not None else 0.0)
 
-                grp.create_dataset("direct", data=direct)
-                if not identical:
-                    grp.create_dataset("crossing", data=crossing)
+                # grp.create_dataset("direct", data=direct)
+                # if not identical:
+                #     grp.create_dataset("crossing", data=crossing)
                 grp.create_dataset("15", data=c15)
                 grp.create_dataset("6",  data=c6)
 
