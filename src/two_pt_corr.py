@@ -9,11 +9,16 @@ import os
 from file_io import DistillationObjectsIO
 from correlator_factory import CorrelatorFactory
 
+from dimeson_factory import insertions_D,insertions_pi,mom_list
 
 def build_processor(yaml_data: dict, cfg_id: int):
     ens = list(yaml_data.keys())[0]
     settings = yaml_data[ens]
     params = settings["params"]
+    global insertions_D, insertions_pi, moms_list
+    insertions_D  = settings["insertions_D"]
+    insertions_pi = settings["insertions_pi"]
+    mom_list = [tuple(tuple(p) for p in pair) for pair in settings["momentum_pairs"]]
 
     proc = CorrelatorFactory(
         ens=ens,

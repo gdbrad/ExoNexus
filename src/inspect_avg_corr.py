@@ -1,5 +1,4 @@
 # plot_32x32_all_pairs_PERFECT.py
-# Wide, tall, crystal-clear correlators — you will SEE everything
 
 import h5py
 import numpy as np

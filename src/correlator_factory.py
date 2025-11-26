@@ -409,17 +409,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         p1, p1b = peram_data[f1]
         p2, p2b = peram_data[f2]
 
-        # ------------------------------------------------------------------
-        # Fast contraction with path caching
-        # ------------------------------------------------------------------
-        # ------------------------------------------------------------------
-        # FAST CONTRACTION — cache ONLY the path (arrays are unhashable!)
-        # ------------------------------------------------------------------
-        # ------------------------------------------------------------------
-        # FAST CONTRACTION — CORRECT DUMMY SHAPES
-        # ------------------------------------------------------------------
-        
-        # ------------------------------------------------------------------
+       
         # FAST CONTRACTION — bullet-proof version (works with any tensor shapes)
         # ------------------------------------------------------------------
         # @functools.lru_cache(maxsize=128)
@@ -454,7 +444,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         pi_corr_acc = np.zeros((num_tsrc, LT), dtype=np.float64)
 
         # ------------------------------------------------------------------
-        # MAIN LOOP WITH LIVE PROGRESS (works with srun!)
+        # MAIN LOOP WITH LIVE PROGRESS
         # ------------------------------------------------------------------
         total_pairs = num_op * num_op
         pbar = tqdm(total=total_pairs, desc="Contractions", position=0, leave=True)
@@ -545,4 +535,3 @@ class CorrelatorFactory(DistillationObjectsIO):
         total_time = time.time() - start_time
         print(f"\n[SUCCESS] Full {num_op}x{num_op} matrix written!")
         print(f"   → {total_pairs:,} pairs in {total_time/60:.1f} minutes")
-        print(f"   → Live progress with tqdm works even under srun!")

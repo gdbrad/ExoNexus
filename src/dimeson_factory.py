@@ -11,6 +11,10 @@ from insertion_factory.gamma import gamma,gamma_i
 
 """
 
+insertions_D = []
+insertions_pi = []
+mom_list = []
+
 gamma_insertion_dict = {
     'a0': I,
     'pi': gamma[5],
@@ -109,15 +113,15 @@ class DiMesonOperator:
             Returns a dict keyed by operator name.
             """
             di_mesons: List['DiMesonOperator'] = []
-            for pair in moms_list:
+            for pair in mom_list:
                 mom1, mom2 = pair
                 mom1_str = mom_to_str(mom1)
                 mom2_str = mom_to_str(mom2)
-                for ins1 in possible_insertions:
+                for ins1 in insertions_D:
                     g1, d1 = ins1.split('_')
                     op1_str = f"D_{mom1_str}_{g1}_{d1}_a1p"
                     op1 = parse_op(op1_str)
-                    for ins2 in possible_insertions:
+                    for ins2 in insertions_pi:
                         g2, d2 = ins2.split('_')
                         op2_str = f"pion_{mom2_str}_{g2}_{d2}_a1p"
                         op2 = parse_op(op2_str)

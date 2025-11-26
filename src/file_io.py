@@ -12,9 +12,6 @@ from __init__ import MESON_NAME_MAP, DI_MESON_NAME_MAP
 
 
 class DistillationObjectsIO:
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
     def __init__(self, ens: str | None = None, collection: str | None = None) -> None:
         self.ens = ens
         self.collection = (
@@ -25,7 +22,8 @@ class DistillationObjectsIO:
             .replace(".", "_")
             .replace("-", "_")
         )
-        self.base_path = "/p/scratch/exotichadrons/su3-distillation/data"
+        
+        self.base_path = "/p/scratch/exflash/su3-distillation/data"
 
         self.dirs: Dict[str, str] = {
             "ens": os.path.join("/p/scratch/exflash/dpi-contractions", ens or ""),

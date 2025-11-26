@@ -6,16 +6,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-file = 'pipi_2pt_nvec_64_tsrc_24_task1.h5'
+file = '/p/scratch/exflash/dpi-contractions/b3.4-s24t64/results-multi-run/b3.4-s24t64_Dpi_cfg1000_matrix_n64_ntsrc16_2025-11-24.h5'
 with h5py.File(file) as f:
-    data = f['/pipi_000/pipi/direct/cfg_400_tsrc_avg'][:]
+    data = f['/Ptot_000_a1p/pi_correlator'][:]
 
 print(data)
 import matplotlib.pyplot
-plt.plot(np.arange(64), data, '.', )
+plt.plot(np.arange(64), data[0], '.', )
 plt.yscale('log')
 plt.legend()
-plt.savefig('pipi.jpg')
+plt.savefig('pi-test.jpg')
 
 # compute eff mass 
 
