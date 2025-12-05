@@ -21,7 +21,6 @@ class DistillationObjectsIO:
         )
         
         self.base_path = "/p/scratch/exflash/dpi-data"
-        self.meson_path = "/p/scratch/exotichadrons/su3-distillation/data"
 
         self.dirs: Dict[str, str] = {
             "ens": os.path.join("/p/scratch/exflash/dpi-contractions", ens or ""),
@@ -67,10 +66,6 @@ class DistillationObjectsIO:
     def get_contraction_params(self) -> Dict[str, Any]:
         s = self._get_contraction_settings()
         p = s["params"]
-        self.nvecs = p["nvecs"]
-        self.lt = p["lt"]
-        self.ntsrc = p["ntsrc"]
-        self.tsrc_step = p["tsrc_step"]
         self.flavor_contents = p["flavor_contents"]
         return p.copy()
 
@@ -92,15 +87,16 @@ class DistillationObjectsIO:
     def _load_full_meson(self) -> np.ndarray:
         path = self._file_path("meson")
         print(f"[IO] Loading FULL meson file: {path}")
-        if not os.path.isfile(path):
-            raise FileNotFoundError(f"Meson file missing: {path}")
-
-        # This assumes load_elemental can return *all* data when mom/disp=None
-        full = load_elemental(path, max_t=self.lt, n_vecs=self.nvecs, mom=None, disp=None)
-        if full is None:
-            raise ValueError("load_elemental returned None for full meson file")
-        print(f"[IO] Full meson loaded, shape={full.shape}")
-        return full
+        data, metadata = load_elemental(path)
+    
+        self.meson_elemental_full = data
+        
+        # Auto-fill everything from metadata
+        self.lt = metadata["Lt"]
+        self.nvecs = metadata["nvecs"]
+        print(f"    → Auto-detected from meson file: Lt={self.lt}, nvecs={self.nvecs}")
+        
+        return data
     
     # ------------------------------------------------------------------
     # Extract (mom, disp) block ON DEMAND from full array
@@ -116,10 +112,8 @@ class DistillationObjectsIO:
         # You need to know the **layout** of your HDF5 file.
         # Assuming: dataset name = f"{mom}/{disp}" or similar.
         # We'll use a **fallback**: let load_elemental handle indexing.
-        block = load_elemental(
+        block, _ = load_elemental(
             self._file_path("meson"),
-            max_t=self.lt,
-            n_vecs=self.nvecs,
             mom=mom,
             disp=disp,
         )
@@ -170,16 +164,19 @@ class DistillationObjectsIO:
     def _load_peram(self, flav: str, attr: str) -> None:
         p = self._file_path(flav)
         print(f"[IO] Loading {flav} perambulator: {p}")
-        peram = load_peram(
-            p,
-            max_t=self.lt,
-            n_vecs=self.nvecs,
-            num_tsrcs=self.ntsrc,           # ← AUTO-DETECT ALL
-            tsrc_step=self.tsrc_step  
-        )
-        if peram is None:
-            raise ValueError(f"Failed to load {flav} perambulator")
+        peram,metadata = load_peram(p)
         setattr(self, attr, peram)
+        
+        # Auto-fill global parameters from first perambulator seen
+        if self.nvecs is None:
+            self.nvecs = metadata["nvecs"]
+            self.lt = metadata["Lt"]
+            print(f"    → Auto-detected: nvecs={self.nvecs}, Lt={self.lt}")
+        
+        # # Optional: detect tsrc_step from times
+        # if len(metadata["ntsrc"]) > 1:
+        #     self.tsrc_step = metadata["Lt"]/ metadata["ntsrc"]
+        
         print(f"    → loaded shape: {peram.shape}")
 
     # ------------------------------------------------------------------
@@ -195,6 +192,23 @@ class DistillationObjectsIO:
             raise RuntimeError("cfg_id not set - call get_contraction_params() first")
         if not self.flavor_contents:
             raise RuntimeError("flavor_contents not set- call get_contraction_params() first")
+        
+        # Detect nvecs from light or charm perambulator filename
+        # TODO THIS IS DUMB
+        for flav in ["light", "charm"]:
+            dir_path = self.dirs.get(flav)
+            if os.path.isdir(dir_path):
+                files = os.listdir(dir_path)
+                match = [f for f in files if str(self.cfg_id) in f]
+                if match:
+                    import re
+                    m = re.search(r"(?:peram|peram_charm)[_-](\d+)_cfg", match[0])
+                    if m:
+                        self.nvecs = int(m.group(1))
+                        print(f"[AUTO] Detected nvecs={self.nvecs} from {flav} filename")
+                        break
+        if self.nvecs is None:
+            raise RuntimeError("Could not auto-detect nvecs from filenames")
 
         # ---------- 1. meson elemental ----------
         # 1. Load FULL meson file

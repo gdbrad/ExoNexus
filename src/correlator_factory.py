@@ -19,21 +19,11 @@ class CorrelatorFactory(DistillationObjectsIO):
         ens: str,
         cfg_id: int,
         flavor_contents: List[str],
-        nvecs: int,
-        lt: int,
-        ntsrc: int,
-        tsrc_step: int = 8,
-        data1: bool = False,
         collection: str | None = None,
     ) -> None:
         super().__init__(ens=ens, collection=collection)
         self.cfg_id = cfg_id
         self.flavor_contents = flavor_contents
-        self.nvecs = nvecs
-        self.lt = lt
-        self.ntsrc = ntsrc
-        self.tsrc_step = tsrc_step
-        self.data1 = data1
         #self.load_distillation_objects()
         # cache for elementals (mom, disp) → array
         self._elemental_cache: Dict[Tuple[str, str], np.ndarray] = {}
@@ -531,9 +521,8 @@ class CorrelatorFactory(DistillationObjectsIO):
         # 1. Load explicit, correctly signed perambulators
         # ------------------------------------------------------------------
         perams = proc.perambulators()  # ← light_fwd, light_bwd, charm_fwd, charm_bwd
-
-        LT = proc.lt
         ntsrc = proc.ntsrc
+        LT = proc.lt
         tsrc_step = proc.tsrc_step
         op_list = list(operators.values())
         num_op = len(op_list)

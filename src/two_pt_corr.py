@@ -27,12 +27,7 @@ def build_processor(yaml_data: dict, cfg_id: int):
     proc = CorrelatorFactory(
         ens=ens,
         cfg_id=cfg_id,
-        flavor_contents=params["flavor_contents"],
-        nvecs=params["nvecs"],
-        lt=params["lt"],
-        ntsrc=params["ntsrc"],
-        tsrc_step=params.get("tsrc_step", 8),
-        data1=False,
+        flavor_contents=params["flavor_contents"]
     )
 
     three_bar = params.get("three_bar", False)
@@ -71,7 +66,7 @@ def main() -> None:
     ens = proc.ens
 
     out_file = outdir / (
-        f"{ens}_Dpi_cfg{args.cfg_id:04d}_matrix_"
+        f"{ens}_Dpi_cfg{args.cfg_id:04d}_single_"
         f"n{proc.nvecs}_ntsrc{proc.ntsrc}_{timestamp}.h5"
     )
 
