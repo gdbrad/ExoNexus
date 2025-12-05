@@ -10,8 +10,10 @@ from typing import List
 NUM_VECS = 64
 NUM_TSRCS = 16
 LT = 64
-BASE_PATH = os.path.abspath('/p/scratch/exotichadrons/su3-distillation')
-ENS = 'b3.4_s32t64'
+TSRC_STEP = 4
+BASE_PATH = os.path.abspath('/p/scratch/exflash/dpi-data')
+ENS = 'b3.4-s24t64'
+
 
 def get_file_path(directory, filename, cfg_id):
     """Construct file path and check if it exists."""
@@ -28,7 +30,7 @@ def dpi_twopt(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True,
         'light': (dirs['light'], f"peram_{NUM_VECS}_cfg{{cfg_id}}.h5"),  # Light perambulator
         'meson': (dirs['meson'], f"meson-{NUM_VECS}_cfg{{cfg_id}}.h5"),
         'strange': (dirs['strange'], f"peram_strange_nv{NUM_VECS}_cfg{{cfg_id}}.h5"),
-        'charm': (dirs['charm'], f"peram_charm_nv{NUM_VECS}_cfg{{cfg_id}}.h5")
+        'charm': (dirs['charm'], f"peram_charm_{NUM_VECS}_cfg{{cfg_id}}.h5")
     }
 
     paths = {key: get_file_path(dir, template, cfg_id) for key, (dir, template) in file_specs.items()}
@@ -42,9 +44,9 @@ def dpi_twopt(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True,
 
     # load common data
     meson_elemental = load_elemental(paths['meson'], LT, NUM_VECS, mom='mom_0_0_0', disp='disp')
-    peram_strange = load_peram(paths['strange'], LT, NUM_VECS, NUM_TSRCS) if paths['strange'] else None
-    peram_charm = load_peram(paths['charm'], LT, NUM_VECS, NUM_TSRCS) if paths['charm'] else None
-    peram_light = load_peram(paths['light'], LT, NUM_VECS, NUM_TSRCS)  # Explicitly light
+    peram_strange = load_peram(paths['strange'], LT, NUM_VECS, NUM_TSRCS,TSRC_STEP) if paths['strange'] else None
+    peram_charm = load_peram(paths['charm'], LT, NUM_VECS, NUM_TSRCS,TSRC_STEP) if paths['charm'] else None
+    peram_light = load_peram(paths['light'], LT, NUM_VECS, NUM_TSRCS,TSRC_STEP)  # Explicitly light
 
     # flavor combinations for perambulators
     flavor_map = {
@@ -112,90 +114,90 @@ def dpi_twopt(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True,
 
         print(f"Correlator for {flavor_content} (meson {idx}) computed successfully{' with tsrc averaging' if tsrc_avg else ''}.")
 
-    # di-meson correlator if multiple flavors are provided eg. light-charm, light-light
-    if len(flavor_contents) > 1:
-        flavor1, flavor2 = flavor_contents
-        group_name = f'{flavor1}_{flavor2}'
+    # # di-meson correlator if multiple flavors are provided eg. light-charm, light-light
+    # if len(flavor_contents) > 1:
+    #     flavor1, flavor2 = flavor_contents
+    #     group_name = f'{flavor1}_{flavor2}'
 
-        # direct di-meson correlator: C1(t) * C2(t)
-        direct_correlator = np.prod([correlators[flavor] for flavor in flavor_contents], axis=0)
+    #     # direct di-meson correlator: C1(t) * C2(t)
+    #     direct_correlator = np.prod([correlators[flavor] for flavor in flavor_contents], axis=0)
 
-        # init crossing di-meson correlator, swap backward propagating perambulators
-        crossing_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)
-        disconnected_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)
+    #     # init crossing di-meson correlator, swap backward propagating perambulators
+    #     crossing_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)
+    #     disconnected_data = np.zeros((NUM_TSRCS, LT), dtype=np.cdouble)
 
-        peram1, peram_back1 = peram_data[flavor1]
-        peram2, peram_back2 = peram_data[flavor2]
+    #     peram1, peram_back1 = peram_data[flavor1]
+    #     peram2, peram_back2 = peram_data[flavor2]
 
-        # crossing term: meson1 uses peram1 and peram_back2, meson2 uses peram2 and peram_back1
-        for tsrc in range(NUM_TSRCS):
-            for t in range(LT):
-                phi_t = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[t], optimize='optimal')
-                phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0], optimize= 'optimal')
+    #     # crossing term: meson1 uses peram1 and peram_back2, meson2 uses peram2 and peram_back1
+    #     for tsrc in range(NUM_TSRCS):
+    #         for t in range(LT):
+    #             phi_t = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[t], optimize='optimal')
+    #             phi_0 = np.einsum("ij,ab->ijab", gamma.gamma[5], meson_elemental[0], optimize= 'optimal')
 
-                # meson1: forward = flavor1, backward = flavor2
-                tau1 = peram1[tsrc, t, :, :, :, :]
-                tau1_back = peram_back2[tsrc, t, :, :, :, :]
-                meson1_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau1, phi_0, tau1_back, optimize='optimal')
+    #             # meson1: forward = flavor1, backward = flavor2
+    #             tau1 = peram1[tsrc, t, :, :, :, :]
+    #             tau1_back = peram_back2[tsrc, t, :, :, :, :]
+    #             meson1_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau1, phi_0, tau1_back, optimize='optimal')
 
-                # meson2: forward = flavor2, backward = flavor1
-                tau2 = peram2[tsrc, t, :, :, :, :]
-                tau2_back = peram_back1[tsrc, t, :, :, :, :]
-                meson2_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau2, phi_0, tau2_back, optimize='optimal')
+    #             # meson2: forward = flavor2, backward = flavor1
+    #             tau2 = peram2[tsrc, t, :, :, :, :]
+    #             tau2_back = peram_back1[tsrc, t, :, :, :, :]
+    #             meson2_cross = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau2, phi_0, tau2_back, optimize='optimal')
 
-                crossing_data[tsrc, t] = meson1_cross * meson2_cross
+    #             crossing_data[tsrc, t] = meson1_cross * meson2_cross
 
-                # disconnected piece for \bar{3} ; approximate quark loop for meson2, connected for meson1
-                # meson1: connected correlator, the same same as direct for flavor1
-                meson1_conn = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau1, phi_0, peram_back1[tsrc, t, :, :, :, :], optimize='optimal')
+    #             # disconnected piece for \bar{3} ; approximate quark loop for meson2, connected for meson1
+    #             # meson1: connected correlator, the same same as direct for flavor1
+    #             meson1_conn = np.einsum("ijab,jkbc,klcd,lida", phi_t, tau1, phi_0, peram_back1[tsrc, t, :, :, :, :], optimize='optimal')
 
-                # meson2: quark loop approximation using peram2 * peram_back2 at same t
-                loop = np.einsum("siab,sjcd->abcd", peram2[tsrc, t, :, :, :, :], peram_back2[tsrc, t, :, :, :, :], optimize='optimal')
-                meson2_loop = np.einsum("ijab,abcd->", phi_t, loop, optimize='optimal')
+    #             # meson2: quark loop approximation using peram2 * peram_back2 at same t
+    #             loop = np.einsum("siab,sjcd->abcd", peram2[tsrc, t, :, :, :, :], peram_back2[tsrc, t, :, :, :, :], optimize='optimal')
+    #             meson2_loop = np.einsum("ijab,abcd->", phi_t, loop, optimize='optimal')
 
-                disconnected_data[tsrc, t] = meson1_conn * meson2_loop
-
-
-
-        crossing_data = crossing_data.real
-
-        # tsrc averaging for crossing term
-        if tsrc_avg:
-            for tsrc in range(NUM_TSRCS):
-                crossing_data[tsrc] = np.roll(crossing_data[tsrc], -4 * tsrc)
-            crossing_avg = crossing_data.mean(axis=0)
-        else:
-            crossing_avg = crossing_data
-
-        # [15] correlator
-        correlator_15 = direct_correlator - crossing_avg
-        # [6] correlator
-        correlator_6 = direct_correlator + crossing_avg
-        # [\bar{3}] is more complicated.. need to add disconnected term (last one)
-        if three_bar:
-            correlator_3_bar = direct_correlator + (1/3 * crossing_avg) - 8/3 * disconnected_data
-        else: 
-            pass
-
-        if tsrc_avg:
-            h5_group.create_dataset(f'{group_name}/direct/cfg_{cfg_id}_tsrc_avg', data=direct_correlator)
-            h5_group.create_dataset(f'{group_name}/crossing/cfg_{cfg_id}_tsrc_avg', data=crossing_avg)
-            h5_group.create_dataset(f'{group_name}/15/cfg_{cfg_id}_tsrc_avg', data=correlator_15)
-            h5_group.create_dataset(f'{group_name}/6/cfg_{cfg_id}_tsrc_avg', data=correlator_6)
-            if three_bar:
-                h5_group.create_dataset(f'{group_name}/3_bar/cfg_{cfg_id}_tsrc_avg', data=correlator_3_bar)
+    #             disconnected_data[tsrc, t] = meson1_conn * meson2_loop
 
 
-        else:
-            for tsrc in range(NUM_TSRCS):
-                tsrc_direct = np.prod([correlators[flavor][tsrc] for flavor in flavor_contents], axis=0)
-                h5_group.create_dataset(f'{group_name}/direct/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct)
-                h5_group.create_dataset(f'{group_name}/crossing/tsrc_{tsrc}/cfg_{cfg_id}', data=crossing_data[tsrc])
-                h5_group.create_dataset(f'{group_name}/15/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct - crossing_data[tsrc])
-                h5_group.create_dataset(f'{group_name}/6/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct + crossing_data[tsrc])
+
+    #     crossing_data = crossing_data.real
+
+    #     # tsrc averaging for crossing term
+    #     if tsrc_avg:
+    #         for tsrc in range(NUM_TSRCS):
+    #             crossing_data[tsrc] = np.roll(crossing_data[tsrc], -4 * tsrc)
+    #         crossing_avg = crossing_data.mean(axis=0)
+    #     else:
+    #         crossing_avg = crossing_data
+
+    #     # [15] correlator
+    #     correlator_15 = direct_correlator - crossing_avg
+    #     # [6] correlator
+    #     correlator_6 = direct_correlator + crossing_avg
+    #     # [\bar{3}] is more complicated.. need to add disconnected term (last one)
+    #     if three_bar:
+    #         correlator_3_bar = direct_correlator + (1/3 * crossing_avg) - 8/3 * disconnected_data
+    #     else: 
+    #         pass
+
+    #     if tsrc_avg:
+    #         h5_group.create_dataset(f'{group_name}/direct/cfg_{cfg_id}_tsrc_avg', data=direct_correlator)
+    #         h5_group.create_dataset(f'{group_name}/crossing/cfg_{cfg_id}_tsrc_avg', data=crossing_avg)
+    #         h5_group.create_dataset(f'{group_name}/15/cfg_{cfg_id}_tsrc_avg', data=correlator_15)
+    #         h5_group.create_dataset(f'{group_name}/6/cfg_{cfg_id}_tsrc_avg', data=correlator_6)
+    #         if three_bar:
+    #             h5_group.create_dataset(f'{group_name}/3_bar/cfg_{cfg_id}_tsrc_avg', data=correlator_3_bar)
 
 
-        print(f"Di-meson correlator for {group_name} computed: direct - crossing saved.")
+    #     else:
+    #         for tsrc in range(NUM_TSRCS):
+    #             tsrc_direct = np.prod([correlators[flavor][tsrc] for flavor in flavor_contents], axis=0)
+    #             h5_group.create_dataset(f'{group_name}/direct/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct)
+    #             h5_group.create_dataset(f'{group_name}/crossing/tsrc_{tsrc}/cfg_{cfg_id}', data=crossing_data[tsrc])
+    #             h5_group.create_dataset(f'{group_name}/15/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct - crossing_data[tsrc])
+    #             h5_group.create_dataset(f'{group_name}/6/tsrc_{tsrc}/cfg_{cfg_id}', data=tsrc_direct + crossing_data[tsrc])
+
+
+    #     print(f"Di-meson correlator for {group_name} computed: direct - crossing saved.")
 
     print(f"Cfg {cfg_id} processed successfully.")
     return True
@@ -203,10 +205,10 @@ def dpi_twopt(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True,
 def main(cfg_id: int, flavor_contents: List[str]):
     """Process a single configuration for one or two flavor systems."""
     dirs = {
-        'light': os.path.join(BASE_PATH, ENS, 'perams_sdb', f'numvec{NUM_VECS}'),
-        'meson': os.path.join(BASE_PATH, ENS, 'meson_sdb'),
+        'light': os.path.join(BASE_PATH, ENS, 'perams_h5'),
+        'meson': os.path.join(BASE_PATH, ENS, 'meson_h5'),
         'strange': os.path.join(BASE_PATH, ENS, 'perams_strange_sdb'),
-        'charm': os.path.join(BASE_PATH, ENS, 'perams_charm_sdb')
+        'charm': os.path.join(BASE_PATH, ENS, 'perams_charm_h5')
     }
 
     # output file name based on flavor combination

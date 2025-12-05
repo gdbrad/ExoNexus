@@ -6,19 +6,23 @@ from pathlib import Path
 from datetime import datetime
 import os
 
-from file_io import DistillationObjectsIO
 from correlator_factory import CorrelatorFactory
-
-from dimeson_factory import insertions_D,insertions_pi,mom_list
+from dimeson_factory import DiMesonOperator
 
 def build_processor(yaml_data: dict, cfg_id: int):
     ens = list(yaml_data.keys())[0]
     settings = yaml_data[ens]
     params = settings["params"]
     global insertions_D, insertions_pi, moms_list
-    insertions_D  = settings["insertions_D"]
-    insertions_pi = settings["insertions_pi"]
-    mom_list = [tuple(tuple(p) for p in pair) for pair in settings["momentum_pairs"]]
+    ins_D  = settings["ins_D"]
+    ins_pi = settings["ins_pi"]
+    mom_pairs = [tuple(tuple(p) for p in pair) for pair in settings["mom_pairs"]]
+    # generate the operator basis first 
+    print(f"[OP] Generating operators: "
+          f"{len(ins_D)} D × {len(ins_pi)} π × {len(mom_pairs)} moms = "
+          f"{len(ins_D)*len(ins_pi)*len(mom_pairs)} total")
+    DiMesonOperator.generate_operators(ins_D, ins_pi, mom_pairs)
+
 
     proc = CorrelatorFactory(
         ens=ens,

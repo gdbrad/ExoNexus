@@ -1,85 +1,127 @@
+#!/usr/bin/env python3
 import yaml
+import os
 from datetime import datetime
-import os 
 import argparse
 
-def generate_batch_contraction(ini_file:str):
+def generate_batch_script(ini_file: str):
     with open(ini_file, 'r') as f:
-        config = yaml.safe_load(f)
+        full_config = yaml.safe_load(f)
+    ens = list(full_config.keys())[0]
+    config = full_config[ens]
+
+    # # Handle the case where the real config is under an ensemble name key
+    # if len(full_config) == 1 and isinstance(list(full_config.values())[0], dict):
+    #     config = list(full_config.values())[0]   # extract the inner dict
+    # else:
+    #     config = full_config
 
     slurm = config['slurm']
-    env = config['environment']
-    params = config['parameters']
+    cfgs = config['configs']
+    params = config.get('parameters', {})
 
+    # ------------------------------------------------------------------
+    # Build the list of cfg_ids
+    # ------------------------------------------------------------------
+    if 'range' in cfgs and cfgs['range'] is not None:
+        r = cfgs['range']
+        start = r['start']
+        end = r['end']
+        step = r.get('step', 1)
+        cfg_ids = list(range(start, end + step, step))
+    elif 'list' in cfgs and cfgs['list'] is not None:
+        cfg_ids = cfgs['list']
+    else:
+        raise ValueError("configs must contain either 'range' or 'list'")
+
+    exclude = set(cfgs.get('exclude', []))
+    cfg_ids = [c for c in cfg_ids if c not in exclude]
+
+    if not cfg_ids:
+        raise ValueError("No configurations left after exclusion")
+
+    # ------------------------------------------------------------------
+    # Output directories and script filename
+    # ------------------------------------------------------------------
     now = datetime.now()
-    run_dir = f'run_{params['ens']}'
-    os.makedirs(run_dir,exist_ok=True)
-    with open(f'{run_dir}/run_{now.day}_{params['flavor']}_{params['irrep']}.sh', 'w') as sh:
-        sh.write(f'''\
-    #!/bin/bash
-    #SBATCH --job-name={slurm['job_name']}
-    #SBATCH --account={slurm['account']}
-    #SBATCH --nodes={slurm['nodes']}
-    #SBATCH --cpus-per-task={slurm['cpus_per_task']}
-    #SBATCH --time={slurm['time']}
-    #SBATCH --output={slurm['output']}
-    #SBATCH --partition={slurm['partition']}
-    #SBATCH --array={slurm['array']}
-    #SBATCH --ntasks-per-node={slurm['ntasks_per_node']}
+    #log_dir = slurm['log_dir']
+    #log_dir = os.path.expanduser(log_dir)
+    output_dir = os.path.expanduser(slurm.get('output_dir'))  # fallback if needed
 
-    module load Stages/2025 GCCcore/.13.3.0
-    module load Python/3.12.3
-    module load h5py
-    module load GCC
-    module load OpenMPI
-    module load PyYAML
-    module load sympy
+    run_dir = f"{output_dir}/run_{ens}_{now.strftime('%Y%m%d')}"
+    log_dir = f"{run_dir}/logs"
+    os.makedirs(run_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
-    # Set environment variables
-    export OMP_NUM_THREADS={env['omp_num_threads']}
+    script_path = os.path.join(run_dir, f"contract_{ens}.sh")
 
-    # Activate virtual environment
-    source {env['virtual_env']}
+    # Choose execution style: False → bash background loop (fills one node)
+    # True → SLURM array job (one task per cfg)
+    use_array = False
 
-    # Define parameters
-    NUM_CONFIGS={params['num_configs']}
-    NUM_VECS={params['num_vecs']}
-    LT={params['lt']}
-    ENS='{params['ens']}'
-    CFG_STEP={params['cfg_step']}
-    START_CFG={params['start_cfg']}
-    END_CFG={params['end_cfg']}
+    # ------------------------------------------------------------------
+    # Write the SLURM script
+    # ------------------------------------------------------------------
+    with open(script_path, 'w') as sh:
+        array_line = f"#SBATCH --array=0-{len(cfg_ids)-1}%32" if use_array else ""
 
-    CFG_IDS=()
-    for cfg in $(seq $START_CFG $CFG_STEP $END_CFG); do
-        if [[ ! " $INVALID_CFGS " =~ " $cfg " ]]; then
-            CFG_IDS+=("$cfg")
-        fi
-    done
+        sh.write(f"""#!/bin/bash
+#SBATCH --job-name={slurm['job_name']}
+#SBATCH --account={slurm['account']}
+#SBATCH --nodes={slurm['nodes']}
+#SBATCH --cpus-per-task={slurm['cpus_per_task']}
+#SBATCH --time={slurm['time']}
+#SBATCH --partition={slurm['partition']}
+#SBATCH --output={slurm['log_dir']}/%j{'_%a' if use_array else ''}.out
+#SBATCH --error={slurm['log_dir']}/%j{'_%a' if use_array else ''}.err
+{array_line}
+YAML_FILE="$1"   # first argument after sbatch
 
-    # Get the configuration ID for this task
-    CFG_ID=${{CFG_IDS[$SLURM_ARRAY_TASK_ID]}}
+# Activate your environment
+source /p/scratch/exflash/sc_venv_template/activate.sh   # adjust if needed
 
-    echo "SLURM_ARRAY_TASK_ID: ${{SLURM_ARRAY_TASK_ID}}"
-    echo "Valid Config IDs: ${{CFG_IDS[*]}}"
-    echo "Selected Config ID: ${{CFG_ID}}"
+SRC_PATH='/p/scratch/exflash/dpi-contractions/exotraction/src/two_pt_corr.py'
 
-    if [[ -n "$CFG_ID" ]]; then
-        echo "Running for cfg_id: ${{CFG_ID}}"
-        srun python3 /p/scratch/exotichadrons/exotraction/src/two_pt_corr.py --lt {params['lt']} --nvecs {params['num_vecs']} --ens {params['ens']} --cfg_id ${{CFG_ID}} --flavor {params['flavor']} --task $((SLURM_ARRAY_TASK_ID + 1)) --ntsrc {params['ntsrc']}
-    else
-        echo "No valid configuration for this job."
-        exit 1
-    fi
-    ''')
-    
-def main(ini_file): 
-    generate_batch_contraction(ini_file=ini_file)
+# List of configurations generated by the Python script
+CFG_IDS=({' '.join(map(str, cfg_ids))})
 
-if __name__== '__main__': 
-    parser = argparse.ArgumentParser(description="generate slurm batch script for contractions on the cpu node.")
-    parser.add_argument('--ini', type=str, required=True, help="exotraction input file")
+echo "Job $SLURM_JOB_ID – YAML file: $YAML_FILE"
+echo "Processing {len(cfg_ids)} configurations: ${{CFG_IDS[@]}}"
 
+""")
+
+        if use_array:
+            sh.write(f"""
+IDX=$SLURM_ARRAY_TASK_ID
+CFG_ID=${{CFG_IDS[$IDX]}}
+
+echo "Array task $IDX → cfg_id $CFG_ID"
+srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID
+""")
+        else:
+            sh.write(f"""
+# Launch all configurations in parallel (background) on this node
+for CFG_ID in "${{CFG_IDS[@]}}"; do
+    echo "Launching cfg_id $CFG_ID"
+    srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID --outdir {run_dir} \\
+         > {log_dir}/cfg_${{CFG_ID}}.log 2>&1 &
+done
+
+wait
+echo "All configurations finished."
+""")
+
+    os.chmod(script_path, 0o755)
+    print(f"Generated batch script: {script_path}")
+    print(f"   {len(cfg_ids)} configurations")
+    print(f"   Submit example:")
+    print(f"       sbatch {script_path} b3.4-s24t64.ini.yml")
+    print(f"   or (if you prefer explicit flag):")
+    print(f"       sbatch {script_path} --yaml_file b3.4-s24t64.ini.yml")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Generate clean SLURM batch script")
+    parser.add_argument('--ini', type=str, required=True,
+                       help="Your generator config YAML (the one with ranges, slurm params, etc.)")
     args = parser.parse_args()
-    main(ini_file=args.ini)
-
+    generate_batch_script(args.ini)

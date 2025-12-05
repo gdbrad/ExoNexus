@@ -6,7 +6,7 @@ from opt_einsum import contract, contract_path # this can be replaced with np.ei
 import functools
 import tqdm 
 
-from insertion_factory import gamma
+import gamma
 from file_io import DistillationObjectsIO
 from dimeson_factory import DiMesonOperator,BareOperator
 
@@ -43,9 +43,8 @@ class CorrelatorFactory(DistillationObjectsIO):
     # ------------------------------------------------------------------
     def contract_local(self, operator, t: int, mom: str):
         D = self.get_elemental_block(mom, "disp")
-        phi = contract("ij,ab->ijab", operator.gamma, D[t], optimize="optimal")
-        return phi
-
+        return contract("ij,ab->ijab", operator.gamma, D[t], optimize="optimal")  # ← +γ₅ always
+    
     def contract_nabla(self, operator, t: int, mom: str):
         gamma_i = [gamma.gamma[1], gamma.gamma[2], gamma.gamma[3]]
         D1 = self.get_elemental_block(mom, 'disp_1')
@@ -109,7 +108,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         # `proc` is a CorrelatorFactory that already knows cfg_id,
         # flavor_contents, nvecs, lt, … – we just have to ask it to load.
         try:
-            proc.load_for_system("Dpi")          # <-- **THIS IS THE MISSING CALL**
+            proc.load_for_system("Dpi")       
         except Exception as e:
             print(f"[ERROR] Failed to load perambulators for cfg {proc.cfg_id}: {e}")
             return False
@@ -118,7 +117,9 @@ class CorrelatorFactory(DistillationObjectsIO):
         # 2. Build forward / backward perambulator map
         # --------------------------------------------------------------
         try:
-            peram_data = proc._peram_data()      # <-- now safe (perams are loaded)
+            #peram_data = proc._peram_data()  
+            peram_data = proc.perambulators()  
+
         except Exception as e:
             print(f"[ERROR] _peram_data() failed for cfg {proc.cfg_id}: {e}")
             return False
@@ -130,16 +131,15 @@ class CorrelatorFactory(DistillationObjectsIO):
             print(f"[WARN] Expected exactly 2 flavor contents, got {proc.flavor_contents}")
             return False
 
-        operators = DiMesonOperator.generate_operators()
+        operators = {op.name: op for op in DiMesonOperator.get_ordered()}
         cls.di_meson_correlator_matrix(
             operators=operators,
             proc=proc,
             h5_group=h5_group,
-            peram_data=peram_data,
+            #peram_data=peram_data,
             tsrc_avg=tsrc_avg,
             three_bar=three_bar,
         )
-        return True
         # ------------------------------------------------------------------
         # ------------------------------------------------------------------
         # 1. Di-meson case
@@ -164,7 +164,7 @@ class CorrelatorFactory(DistillationObjectsIO):
         #     )
         # # ------------------------------------------------------------------
         # # 3. Always write the *individual* meson correlators for every flavour
-        # # ------------------------------------------------------------------
+        # # # ------------------------------------------------------------------
         # for idx, fc in enumerate(proc.flavor_contents, 1):
         #     peram, peram_b = peram_data[fc]
         #     single = np.zeros((num_tsrc, LT), dtype=np.cdouble)
@@ -196,50 +196,51 @@ class CorrelatorFactory(DistillationObjectsIO):
         #     h5_group.create_dataset(f"{key}/cfg_{proc.cfg_id}{suffix}", data=single)
         # print(f"Cfg {proc.cfg_id} processed – results written.")
 
+        return True
+
     # ------------------------------------------------------------------
     # Single-meson correlator
     # ------------------------------------------------------------------
-    @classmethod
-    def single_meson_correlator(
-        cls,
-        proc: "CorrelatorFactory",
-        h5_group: h5py.Group,
-        peram_data: Dict[str, Tuple[Any, Any]],
-        phi_0: np.ndarray,
-        tsrc_avg: bool,
-    ) -> None:
-        fc = proc.flavor_contents[0]
-        peram, peram_b = peram_data[fc]
-        LT = proc.lt
-        num_tsrc = proc.ntsrc
-        tsrc_step = proc.tsrc_step
-        data = np.zeros((num_tsrc, LT), dtype=np.cdouble)
-        for tsrc_idx in range(num_tsrc):
-            for dt in range(LT):
-                phi_t = contract(
-                    "ij,ab->ijab",
-                    gamma.gamma[5],
-                    proc.meson_elemental[dt],
-                    optimize="optimal",
-                )
-                tau = peram[tsrc_idx, dt, :, :, :, :]
-                tau_b = peram_b[tsrc_idx, dt, :, :, :, :]
-                data[tsrc_idx, dt] = contract(
-                    "ijab,jkbc,klcd,lida",
-                    phi_t,
-                    tau,
-                    phi_0,
-                    tau_b,
-                    optimize="optimal",
-                )
-        data = data.real
-        if tsrc_avg:
-            for i in range(num_tsrc):
-                data[i] = np.roll(data[i], -tsrc_step * i)
-            data = data.mean(axis=0)
-        prefix = f"meson1_{fc}"
-        suffix = "_tsrc_avg" if tsrc_avg else ""
-        h5_group.create_dataset(f"{prefix}/cfg_{proc.cfg_id}{suffix}", data=data)
+    # @classmethod
+    # def single_meson_correlator(
+    #     cls,
+    #     proc: "CorrelatorFactory",
+    #     h5_group: h5py.Group,
+    #     peram_data:  Dict[str, Tuple[np.ndarray, np.ndarray]],
+    #     tsrc_avg: bool,
+    # ) -> None:
+    #     fc = proc.flavor_contents[0]
+    #     peram, peram_b = peram_data[fc]
+    #     LT = proc.lt
+    #     num_tsrc = proc.ntsrc
+    #     tsrc_step = proc.tsrc_step
+    #     data = np.zeros((num_tsrc, LT), dtype=np.cdouble)
+    #     for tsrc_idx in range(num_tsrc):
+    #         for dt in range(LT):
+    #             phi_t = contract(
+    #                 "ij,ab->ijab",
+    #                 gamma.gamma[5],
+    #                 proc.meson_elemental[dt],
+    #                 optimize="optimal",
+    #             )
+    #             tau = peram[tsrc_idx, dt, :, :, :, :]
+    #             tau_b = peram_b[tsrc_idx, dt, :, :, :, :]
+    #             data[tsrc_idx, dt] = contract(
+    #                 "ijab,jkbc,klcd,lida",
+    #                 phi_t,
+    #                 tau,
+    #                 phi_0,
+    #                 tau_b,
+    #                 optimize="optimal",
+    #             )
+    #     data = data.real
+    #     if tsrc_avg:
+    #         for i in range(num_tsrc):
+    #             data[i] = np.roll(data[i], -tsrc_step * i)
+    #         data = data.mean(axis=0)
+    #     prefix = f"meson1_{fc}"
+    #     suffix = "_tsrc_avg" if tsrc_avg else ""
+    #     h5_group.create_dataset(f"{prefix}/cfg_{proc.cfg_id}{suffix}", data=data)
 
     # ------------------------------------------------------------------
     # Di-meson correlator (single operator)
@@ -378,160 +379,286 @@ class CorrelatorFactory(DistillationObjectsIO):
     # Di-meson correlator matrix for a given irrep, total momenta P^2 (>1 operators)
     # -----------------------------------------------------------------------------
 
+    # ----------------------------------------------------------------------------
+# Di-meson correlator matrix 
+# ----------------------------------------------------------------------------
+
+    # @classmethod
+    # def di_meson_correlator_matrix(
+    #     cls,
+    #     operators: Dict[str, DiMesonOperator],
+    #     proc: "CorrelatorFactory",
+    #     h5_group: h5py.Group,
+    #     tsrc_avg: bool,
+    #     three_bar: bool,
+    # ) -> None:
+    #     import time
+    #     start = time.time()
+
+    #     # ------------------------------------------------------------------
+    #     # 1. Get perambulators via the old, clean _peram_data() method
+    #     # ------------------------------------------------------------------
+    #     peram_data = proc._peram_data()   # ← back to your trusted way
+
+    #     LT = proc.lt
+    #     ntsrc = proc.ntsrc
+    #     tsrc_step = proc.tsrc_step
+    #     op_list = list(operators.values())
+    #     num_op = len(op_list)
+
+    #     print(f"[MATRIX] Computing {num_op}×{num_op} Dπ matrix, ntsrc={ntsrc}, Lt={LT}")
+
+    #     # ------------------------------------------------------------------
+    #     # 2. Extract forward/backward legs for the two mesons
+    #     # ------------------------------------------------------------------
+    #     f1, f2 = proc.flavor_contents
+    #     meson1_fwd, meson1_bwd = peram_data[f1]   # e.g. charm_light → (light_fwd, charm_bwd)
+    #     meson2_fwd, meson2_bwd = peram_data[f2]   # e.g. light_light → (light_fwd, light_bwd)
+
+    #     # ------------------------------------------------------------------
+    #     # 3. Interpolator builders — no signs here!
+    #     # ------------------------------------------------------------------
+    #     def phi_sink(op: BareOperator, t:int, mom: str):
+    #         D = proc.get_elemental_block(mom, "disp")
+    #         return contract("ij,ab->ijab", op.gamma, D[t], optimize="optimal")
+
+    #     def phi_source(op: BareOperator, mom: str):
+    #         D = proc.get_elemental_block(mom, "disp")
+    #         return contract("ij,ab->ijab", op.gamma, D[0], optimize="optimal")
+
+    #     # Pre-cache source interpolators
+    #     phi0_m1_cache = [phi_source(op.op1, op.op1.mom) for op in op_list]  # D source for meson1 (D)
+    #     phi0_m2_cache = [phi_source(op.op2, op.op2.mom) for op in op_list]  # source for meson2 (π)
+
+    #     # ------------------------------------------------------------------
+    #     # 4. Single-meson correlators
+    #     # ------------------------------------------------------------------
+    #     first_op = op_list[0]
+    #     phi0_m1_first = phi_source(first_op.op1, first_op.op1.mom)
+    #     phi0_m2_first = phi_source(first_op.op2, first_op.op2.mom)
+
+    #     meson1_corr = np.zeros((ntsrc, LT), dtype=np.cdouble)
+    #     meson2_corr = np.zeros((ntsrc, LT), dtype=np.cdouble)
+
+    #     for tsrc_idx in range(ntsrc):
+    #         for t in range(LT):
+    #             phi_t_1 = phi_sink(first_op.op1, t, first_op.op1.mom)
+    #             phi_t_2 = phi_sink(first_op.op2, t, first_op.op2.mom)
+
+    #             c1 = contract("ijab,jkbc,klcd,lida",
+    #                         phi_t_1, meson1_fwd[tsrc_idx, t], phi0_m1_first, meson1_bwd[tsrc_idx, t],
+    #                         optimize="optimal")
+    #             c2 = contract("ijab,jkbc,klcd,lida",
+    #                         phi_t_2, meson2_fwd[tsrc_idx, t], phi0_m2_first, meson2_bwd[tsrc_idx, t],
+    #                         optimize="optimal")
+
+    #             meson1_corr[tsrc_idx, t] = c1
+    #             meson2_corr[tsrc_idx, t] = c2
+
+    #     h5_group.create_dataset("meson1_correlator", data=meson1_corr.real)
+    #     h5_group.create_dataset("meson2_correlator", data=meson2_corr.real)
+    #     print("   → meson1 (D) and meson2 (π) correlators written")
+
+    #     # ------------------------------------------------------------------
+    #     # 5. Main di-meson matrix loop
+    #     # ------------------------------------------------------------------
+    #     for src_idx, src_op in enumerate(op_list):
+    #         phi0_m1_src = phi0_m1_cache[src_idx]
+    #         phi0_m2_src = phi0_m2_cache[src_idx]
+
+    #         for snk_idx, snk_op in enumerate(op_list):
+    #             direct   = np.zeros((ntsrc, LT), dtype=np.cdouble)
+    #             crossing = np.zeros((ntsrc, LT), dtype=np.cdouble)
+
+    #             for tsrc_idx in range(ntsrc):
+    #                 for t in range(LT):
+    #                     phi_t_1 = phi_sink(snk_op.op1, t, snk_op.op1.mom)
+    #                     phi_t_2 = phi_sink(snk_op.op2, t, snk_op.op2.mom)
+
+    #                     # Direct
+    #                     m1 = contract("ijab,jkbc,klcd,lida",
+    #                                 phi_t_1, meson1_fwd[tsrc_idx,t], phi0_m1_src,
+    #                                 meson1_bwd[tsrc_idx,t], optimize="optimal")
+    #                     m2 = contract("ijab,jkbc,klcd,lida",
+    #                                 phi_t_2, meson2_fwd[tsrc_idx,t], phi0_m2_src,
+    #                                 meson2_bwd[tsrc_idx,t], optimize="optimal")
+    #                     direct[tsrc_idx, t] = m1 * m2
+
+    #                     # Crossing
+    #                     m1x = contract("ijab,jkbc,klcd,lida",
+    #                                 phi_t_1, meson1_fwd[tsrc_idx,t], phi0_m1_src,
+    #                                 meson2_bwd[tsrc_idx,t], optimize="optimal")
+    #                     m2x = contract("ijab,jkbc,klcd,lida",
+    #                                 phi_t_2, meson2_fwd[tsrc_idx,t], phi0_m2_src,
+    #                                 meson1_bwd[tsrc_idx,t], optimize="optimal")
+    #                     crossing[tsrc_idx, t] = m1x * m2x
+
+    #             # Post-processing
+    #             direct   = direct.real
+    #             crossing = crossing.real
+
+    #             if tsrc_avg:
+    #                 for i in range(ntsrc):
+    #                     sh = -tsrc_step * i
+    #                     direct[i]   = np.roll(direct[i], sh)
+    #                     crossing[i] = np.roll(crossing[i], sh)
+    #                 direct   = direct.mean(axis=0)
+    #                 crossing = crossing.mean(axis=0)
+
+    #             c15 = direct - crossing
+    #             c6  = direct + crossing
+
+    #             grp = h5_group.create_group(f"op{src_idx:02d}_op{snk_idx:02d}")
+    #             grp.attrs["src"] = src_op.name
+    #             grp.attrs["snk"] = snk_op.name
+    #             grp.create_dataset("15", data=c15)
+    #             grp.create_dataset("6",  data=c6)
+
+    #     print(f"[DONE] Full matrix written in {(time.time()-start)/60:.1f} min")
     @classmethod
     def di_meson_correlator_matrix(
         cls,
         operators: Dict[str, DiMesonOperator],
         proc: "CorrelatorFactory",
         h5_group: h5py.Group,
-        peram_data: Dict[str, Tuple[np.ndarray, np.ndarray]],
         tsrc_avg: bool,
         three_bar: bool,
     ) -> None:
         import time
-        from tqdm import tqdm
+        start = time.time()
 
-        start_time = time.time()
-        f1, f2 = proc.flavor_contents
-        identical = f1 == f2
+        # ------------------------------------------------------------------
+        # 1. Load explicit, correctly signed perambulators
+        # ------------------------------------------------------------------
+        perams = proc.perambulators()  # ← light_fwd, light_bwd, charm_fwd, charm_bwd
+
         LT = proc.lt
-        num_tsrc = proc.ntsrc
+        ntsrc = proc.ntsrc
         tsrc_step = proc.tsrc_step
-
         op_list = list(operators.values())
         num_op = len(op_list)
 
-        print(f"\n[START] Computing full {num_op}x{num_op} Dπ correlator matrix (Ptot=000, a1p)")
-        print(f"        cfg {proc.cfg_id} | nvec {proc.nvecs} | ntsrc {num_tsrc} | Lt {LT}")
-        print(f"        tsrc_avg = {tsrc_avg} | three_bar = {three_bar}")
-        print(f"        Total pairs: {num_op**2:,}")
-
-        p1, p1b = peram_data[f1]
-        p2, p2b = peram_data[f2]
-
-       
-        # FAST CONTRACTION — bullet-proof version (works with any tensor shapes)
-        # ------------------------------------------------------------------
-        # @functools.lru_cache(maxsize=128)
-        # def _get_contraction_path(expr):
-        #     # Use a single dummy tensor with shape (1,1,...,1) matching number of indices
-        #     # Count commas + 1 = number of input tensors
-        #     num_tensors = expr.count(',') + 1
-        #     dummy = np.zeros((1,) * 4, dtype=np.complex128)  # all tensors have 4 indices
-        #     dummies = [dummy] * num_tensors
-        #     path, _ = contract_path(expr, *dummies, optimize='optimal')
-        #     return path
-
-        # def fast_contract(expr, *tensors):
-        #     path = _get_contraction_path(expr)
-        #     return contract(expr, *tensors, optimize=path)
-
-        def contract_op(op: BareOperator, t: int, mom: str):
-            if op.deriv is None:
-                return proc.contract_local(op, t, mom)
-            if op.deriv == "nabla":
-                return proc.contract_nabla(op, t, mom)
-            add = op.deriv == "D"
-            return proc.contract_B_D(op, t, mom, add=add)
-
-        # Precompute phi_0
-        print("[PRE] Precomputing phi_0 for all source operators...")
-        phi0_D_cache  = [contract_op(op.op1, 0, op.op1.mom) for op in op_list]
-        phi0_pi_cache = [contract_op(op.op2, 0, op.op2.mom) for op in op_list]
-
-        # Individual meson accumulators
-        D_corr_acc  = np.zeros((num_tsrc, LT), dtype=np.float64)
-        pi_corr_acc = np.zeros((num_tsrc, LT), dtype=np.float64)
+        print(f"[MATRIX] Computing {num_op}×{num_op} Dπ matrix, ntsrc={ntsrc}, Lt={LT}")
 
         # ------------------------------------------------------------------
-        # MAIN LOOP WITH LIVE PROGRESS
+        # 2. Map flavor strings → correct (forward, backward) perambulators
         # ------------------------------------------------------------------
-        total_pairs = num_op * num_op
-        pbar = tqdm(total=total_pairs, desc="Contractions", position=0, leave=True)
+        flavor_map = {
+            "light_light":  (perams["light_fwd"],  perams["light_bwd"]),
+            "light_charm":  (perams["charm_fwd"],  perams["light_bwd"]),   # rare: D⁻
+            "charm_light":  (perams["light_fwd"],  perams["charm_bwd"]),   # standard D⁺/D⁰
+            "charm_charm":  (perams["charm_fwd"],  perams["charm_bwd"]),
+            # add "strange_light", "light_strange", etc. later
+        }
 
+        f1, f2 = proc.flavor_contents
+        if f1 not in flavor_map or f2 not in flavor_map:
+            raise ValueError(f"Unsupported flavor_contents: {proc.flavor_contents}")
+
+        # Legs for the two mesons
+        meson1_fwd, meson1_bwd = flavor_map[f1]   # e.g. D meson
+        meson2_fwd, meson2_bwd = flavor_map[f2]   # e.g. π meson
+
+        # ------------------------------------------------------------------
+        # 3. Interpolator builders — no signs here!
+        # ------------------------------------------------------------------
+        def phi_sink(op: BareOperator, t: int, mom: str):
+            D = proc.get_elemental_block(mom, "disp")
+            return contract("ij,ab->ijab", op.gamma, D[t], optimize="optimal")
+
+        def phi_source(op: BareOperator, mom: str):
+            D = proc.get_elemental_block(mom, "disp")
+            return contract("ij,ab->ijab", op.gamma, D[0], optimize="optimal")
+
+        # Pre-cache source interpolators
+        phi0_m1_cache = [phi_source(op.op1, op.op1.mom) for op in op_list]  # D source
+        phi0_m2_cache = [phi_source(op.op2, op.op2.mom) for op in op_list]  # π source
+
+        # ------------------------------------------------------------------
+        # 4. Single-meson correlators (local pseudoscalar)
+        # ------------------------------------------------------------------
+        first_op = op_list[0]
+        phi0_m1_first = phi_source(first_op.op1, first_op.op1.mom)
+        phi0_m2_first = phi_source(first_op.op2, first_op.op2.mom)
+
+        meson1_corr = np.zeros((ntsrc, LT), dtype=np.cdouble)
+        meson2_corr = np.zeros((ntsrc, LT), dtype=np.cdouble)
+
+        for tsrc_idx in range(ntsrc):
+            for t in range(LT):
+                phi_t_1 = phi_sink(first_op.op1, t, first_op.op1.mom)
+                phi_t_2 = phi_sink(first_op.op2, t, first_op.op2.mom)
+
+                c1 = contract("ijab,jkbc,klcd,lida",
+                            phi_t_1, meson1_fwd[tsrc_idx, t],
+                            phi0_m1_first, meson1_bwd[tsrc_idx, t],
+                            optimize="optimal")
+
+                c2 = contract("ijab,jkbc,klcd,lida",
+                            phi_t_2, meson2_fwd[tsrc_idx, t],
+                            phi0_m2_first, meson2_bwd[tsrc_idx, t],
+                            optimize="optimal")
+
+                meson1_corr[tsrc_idx, t] = c1
+                meson2_corr[tsrc_idx, t] = c2
+
+        h5_group.create_dataset("meson1_correlator", data=meson1_corr.real)
+        h5_group.create_dataset("meson2_correlator", data=meson2_corr.real)
+        print("   → meson1 (D) and meson2 (π) correlators written")
+
+        # ------------------------------------------------------------------
+        # 5. Main di-meson matrix loop
+        # ------------------------------------------------------------------
         for src_idx, src_op in enumerate(op_list):
-            phi_0_D_src  = phi0_D_cache[src_idx]
-            phi_0_pi_src = phi0_pi_cache[src_idx]
+            phi0_m1_src = phi0_m1_cache[src_idx]
+            phi0_m2_src = phi0_m2_cache[src_idx]
 
             for snk_idx, snk_op in enumerate(op_list):
-                pbar.update(1)
-                pbar.set_postfix({
-                    "src": f"op{src_idx:02d}",
-                    "snk": f"op{snk_idx:02d}",
-                    "name": f"{src_op.name[:20]}...X{src_op.name[-20:]}"
-                })
+                direct   = np.zeros((ntsrc, LT), dtype=np.cdouble)
+                crossing = np.zeros((ntsrc, LT), dtype=np.cdouble)
 
-                group_name = f"op{src_idx:02d}_X_op{snk_idx:02d}"
-                grp = h5_group.create_group(group_name)
-                grp.attrs["src_index"] = src_idx
-                grp.attrs["snk_index"] = snk_idx
-                grp.attrs["src_name"]  = src_op.name
-                grp.attrs["snk_name"]  = snk_op.name
-
-                direct = np.zeros((num_tsrc, LT), dtype=np.cdouble)
-                crossing = np.zeros((num_tsrc, LT), dtype=np.cdouble) if not identical else None
-
-                for tsrc_idx in range(num_tsrc):
+                for tsrc_idx in range(ntsrc):
                     for t in range(LT):
-                        phi_t_D  = contract_op(snk_op.op1, t, snk_op.op1.mom)
-                        phi_t_pi = contract_op(snk_op.op2, t, snk_op.op2.mom)
+                        phi_t_1 = phi_sink(snk_op.op1, t, snk_op.op1.mom)
+                        phi_t_2 = phi_sink(snk_op.op2, t, snk_op.op2.mom)
 
+                        # Direct term: meson1 × meson2
                         m1 = contract("ijab,jkbc,klcd,lida",
-                                        phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p1b[tsrc_idx, t],optimize='optimal')
+                                    phi_t_1, meson1_fwd[tsrc_idx,t], phi0_m1_src,
+                                    meson1_bwd[tsrc_idx,t], optimize="optimal")
                         m2 = contract("ijab,jkbc,klcd,lida",
-                                        phi_t_pi, p2[tsrc_idx, t], phi_0_pi_src, p2b[tsrc_idx, t],optimize='optimal')
+                                    phi_t_2, meson2_fwd[tsrc_idx,t], phi0_m2_src,
+                                    meson2_bwd[tsrc_idx,t], optimize="optimal")
                         direct[tsrc_idx, t] = m1 * m2
 
-                        if src_idx == snk_idx:
-                            D_corr_acc[tsrc_idx, t]  += m1.real
-                            pi_corr_acc[tsrc_idx, t] += m2.real
-
-                        if not identical:
-                            m1c = contract("ijab,jkbc,klcd,lida", phi_t_D, p1[tsrc_idx, t], phi_0_D_src, p2b[tsrc_idx, t],optimize='optimal')
-                            m2c = contract("ijab,jkbc,klcd,lida", phi_t_pi, p2[tsrc_idx,t ], phi_0_pi_src, p1b[tsrc_idx, t],optimize='optimal')
-                            crossing[tsrc_idx, t] = m1c * m2c
+                        # Crossing term: swap backward legs
+                        m1x = contract("ijab,jkbc,klcd,lida",
+                                    phi_t_1, meson1_fwd[tsrc_idx,t], phi0_m1_src,
+                                    meson2_bwd[tsrc_idx,t], optimize="optimal")
+                        m2x = contract("ijab,jkbc,klcd,lida",
+                                    phi_t_2, meson2_fwd[tsrc_idx,t], phi0_m2_src,
+                                    meson1_bwd[tsrc_idx,t], optimize="optimal")
+                        crossing[tsrc_idx, t] = m1x * m2x
 
                 # Post-processing
-                direct = direct.real
-                if crossing is not None:
-                    crossing = crossing.real
+                direct   = direct.real
+                crossing = crossing.real
 
                 if tsrc_avg:
-                    for i in range(num_tsrc):
-                        shift = -tsrc_step * i
-                        direct[i] = np.roll(direct[i], shift)
-                        if crossing is not None:
-                            crossing[i] = np.roll(crossing[i], shift)
-                    direct = direct.mean(axis=0)
-                    if crossing is not None:
-                        crossing = crossing.mean(axis=0)
+                    for i in range(ntsrc):
+                        sh = -tsrc_step * i
+                        direct[i]   = np.roll(direct[i],   sh)
+                        crossing[i] = np.roll(crossing[i], sh)
+                    direct   = direct.mean(axis=0)
+                    crossing = crossing.mean(axis=0)
 
-                c15 = direct - (crossing if crossing is not None else 0.0)
-                c6  = direct + (crossing if crossing is not None else 0.0)
+                c15 = direct - crossing
+                c6  = direct + crossing
 
-                # grp.create_dataset("direct", data=direct)
-                # if not identical:
-                #     grp.create_dataset("crossing", data=crossing)
+                grp = h5_group.create_group(f"op{src_idx:02d}_op{snk_idx:02d}")
+                grp.attrs["src"] = src_op.name
+                grp.attrs["snk"] = snk_op.name
                 grp.create_dataset("15", data=c15)
                 grp.create_dataset("6",  data=c6)
 
-        pbar.close()
-
-        # Individual mesons
-        D_corr  = D_corr_acc.real  / num_op
-        pi_corr = pi_corr_acc.real / num_op
-
-        if tsrc_avg:
-            for i in range(num_tsrc):
-                shift = -tsrc_step * i
-                D_corr[i]  = np.roll(D_corr[i],  shift)
-                pi_corr[i] = np.roll(pi_corr[i], shift)
-            D_corr  = D_corr.mean(axis=0)
-            pi_corr = pi_corr.mean(axis=0)
-
-        h5_group.create_dataset("D_correlator",  data=D_corr)
-        h5_group.create_dataset("pi_correlator", data=pi_corr)
-
-        total_time = time.time() - start_time
-        print(f"\n[SUCCESS] Full {num_op}x{num_op} matrix written!")
-        print(f"   → {total_pairs:,} pairs in {total_time/60:.1f} minutes")
+        print(f"[DONE] Full matrix written in {(time.time()-start)/60:.1f} min")

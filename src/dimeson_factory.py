@@ -5,15 +5,11 @@ import re
 from typing import List, Dict, Union, Tuple, Any
 
 I = np.identity(4)
-from insertion_factory.gamma import gamma,gamma_i
+from gamma import gamma,gamma_i
 
 """see https://arxiv.org/pdf/1607.07093 table 5
 
 """
-
-insertions_D = []
-insertions_pi = []
-mom_list = []
 
 gamma_insertion_dict = {
     'a0': I,
@@ -107,13 +103,19 @@ class DiMesonOperator:
     F: str
 
     @classmethod
-    def generate_operators(cls) -> Dict[str, 'DiMesonOperator']:
+    def generate_operators(
+        cls,
+        insertions_D: List[str],
+        insertions_pi: List[str],
+        momentum_pairs: List[Tuple[Tuple[int,int,int], Tuple[int,int,int]]]) -> Dict[str, 'DiMesonOperator']:
             """
             Generate all possible DiMesonOperator combinations for D-pi in a1p irrep.
             Returns a dict keyed by operator name.
             """
-            di_mesons: List['DiMesonOperator'] = []
-            for pair in mom_list:
+            operators = {}
+            idx = 0
+            #di_mesons: List['DiMesonOperator'] = []
+            for pair in momentum_pairs:
                 mom1, mom2 = pair
                 mom1_str = mom_to_str(mom1)
                 mom2_str = mom_to_str(mom2)
@@ -125,18 +127,31 @@ class DiMesonOperator:
                         g2, d2 = ins2.split('_')
                         op2_str = f"pion_{mom2_str}_{g2}_{d2}_a1p"
                         op2 = parse_op(op2_str)
-                        dim_name = f"{op1.name}X{op2.name}"
-                        dim = cls(op1=op1, op2=op2, name=dim_name, F='a1p')
-                        di_mesons.append(dim)
-            print(f"Total number of DiMeson operators created: {len(di_mesons)}")
-            for i, dim in enumerate(di_mesons):
-                print(f"op {i+1}: {dim.name}")
-            operators: Dict[str, 'DiMesonOperator'] = {dim.name: dim for dim in di_mesons}
 
-            # THIS LINE WAS MISSING — THIS IS THE FIX
-            cls._ordered_names = list(operators.keys())
-            cls._name_to_idx = {name: i for i, name in enumerate(cls._ordered_names)}
-            cls._idx_to_name = {i: name for i, name in enumerate(cls._ordered_names)}
+                        dimeson_op_name = f"{op1.name}X{op2.name}"
+                        op = cls(op1=op1, op2=op2, name=dimeson_op_name, F='a1p')
+                        operators[dimeson_op_name] = op
+                        idx += 1
+                        #di_mesons.append(dim)
+                # Register ordered list for integer indexing
+            ordered = list(operators.values())
+            cls._ordered = ordered
+            cls._name_to_idx = {op.name: i for i, op in enumerate(ordered)}
+            cls._idx_to_name = {i: op.name for i, op in enumerate(ordered)}
 
-            print(f"DiMesonOperator: registered {len(cls._ordered_names)} operators with integer mapping")
+            print(f"[DiMeson] Generated {len(ordered)} operators:")
+            for i, op in enumerate(ordered):
+                print(f"  op {i+1:2d}: {op.name}")
             return operators
+    
+    @classmethod
+    def get_ordered(cls):
+        return cls._ordered
+
+    @classmethod
+    def name_to_index(cls, name: str) -> int:
+        return cls._name_to_idx[name]
+
+    @classmethod
+    def index_to_name(cls, idx: int) -> str:
+        return cls._idx_to_name[idx]

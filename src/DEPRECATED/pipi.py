@@ -43,6 +43,8 @@ def pipi_twopt(cfg_id, dirs, h5_group, flavor_contents: List[str], tsrc_avg=True
     # flavor combinations for perambulators
     flavor_map = {
         'light_light': (peram_light, peram_light, paths['light'], paths['light']),
+        'light_charm': (peram_light, peram_charm, paths['light'], paths['charm']),
+
     }
 
     # store the correlators and perambulator data for each flavor system

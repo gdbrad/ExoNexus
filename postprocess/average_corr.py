@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import gvar as gv
 from pathlib import Path
-from dimeson_factory import DiMesonOperator
+from src.dimeson_factory import DiMesonOperator
 
 # ==============================================================
 merged_file = Path("merged_Dpi.h5")
