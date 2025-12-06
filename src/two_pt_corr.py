@@ -94,12 +94,12 @@ def main() -> None:
         else:
             print("ERROR: Correlator computation failed!")
 
-    # Optional: create a symlink "latest.h5" for convenience
-    latest_link = outdir / "latest.h5"
-    if latest_link.exists():
-        latest_link.unlink()
-    latest_link.symlink_to(out_file.name)
-    print(f"Symlink → {latest_link}")
+    # # Optional: create a symlink "latest.h5" for convenience
+    # latest_link = outdir / "latest.h5"
+    # if latest_link.exists():
+    #     latest_link.unlink()
+    # latest_link.symlink_to(out_file.name)
+    # print(f"Symlink → {latest_link}")
 
 
 if __name__ == "__main__":

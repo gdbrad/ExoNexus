@@ -10,7 +10,8 @@ from gamma import gamma,gamma_i
 """see https://arxiv.org/pdf/1607.07093 table 5
 
 """
-
+# these get coupled together in an insertion monomial
+#----------------------------------------------------#
 gamma_insertion_dict = {
     'a0': I,
     'pi': gamma[5],
@@ -29,6 +30,7 @@ derivative_dict = {
     'B': 'B',
     'D': 'D'
 }
+#----------------------------------------------------#
 
 flavor_dict = {'D': 'charm_light', 'pion': 'light_light'}
 

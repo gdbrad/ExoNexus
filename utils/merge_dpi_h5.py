@@ -3,8 +3,8 @@
 Merge all per-config files into one clean file with:
 merged_Dpi.h5
 └── Ptot_000_a1p
-    ├── cfg_3000
-    ├── cfg_3040
+    ├── cfg_1000
+    ├── cfg_1080
     └── ...
 """
 
