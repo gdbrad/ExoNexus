@@ -31,6 +31,7 @@ gamma[4][:2, 2:] = I
 gamma[4][2:, :2] = I
 
 gamma[5] = gamma[1] @ gamma[2] @ gamma[3] @ gamma[4]
+gamma_i = [gamma[1],gamma[2],gamma[3],gamma[4]]
 
 # TODO when are these necessary to use? for the deriv operators? 
 #I_sparse = scp.sparse.csr_matrix(I)
@@ -46,7 +47,6 @@ gamma[5] = gamma[1] @ gamma[2] @ gamma[3] @ gamma[4]
 # g1_sparse = scp.sparse.csr_matrix(gamma.gamma[1])
 
 #to be looped over based on value of i index in derivative 
-gamma_i = [gamma[1],gamma[2],gamma[3],gamma[4]]
 # gamma_i_block = [g1_block,g2_block,g3_block]
 # gamma_i_sparse = [g1_sparse,g2_sparse,g3_sparse]
 

@@ -1,159 +1,92 @@
+# dimeson_factory.py — FINAL: D_000_pi_none_a1uxPI_000_pi_none_a1u.h5
 from dataclasses import dataclass
-import numpy as np
-from itertools import product
-import re
-from typing import List, Dict, Union, Tuple, Any
-
+from typing import List, Tuple, Union
+import numpy as np 
 I = np.identity(4)
-from gamma import gamma,gamma_i
+from gamma import gamma
 
-"""see https://arxiv.org/pdf/1607.07093 table 5
-
-"""
-# these get coupled together in an insertion monomial
-#----------------------------------------------------#
 gamma_insertion_dict = {
-    'a0': I,
-    'pi': gamma[5],
-    'pi2': gamma[4]@gamma[5],
-    'b0': gamma[4],
-    'rho': I, #gi
-    'rho2': gamma[4],#gi
-    'a1': gamma[5],#gi
-    'b1': gamma[4]@gamma[5]#gi
-
+    'a0': I, 'pi': gamma[5], 'pi2': gamma[4] @ gamma[5], 'b0': gamma[4],
+    'rho': I, 'rho2': gamma[4], 'a1': gamma[5], 'b1': gamma[4] @ gamma[5],
 }
-
-derivative_dict = {
-    'none': None,
-    'nabla': 'nabla',
-    'B': 'B',
-    'D': 'D'
-}
-#----------------------------------------------------#
-
-flavor_dict = {'D': 'charm_light', 'pion': 'light_light'}
 
 @dataclass
 class BareOperator:
+    meson: str
+    mom: Tuple[int,int,int]
+    ins: str
+    irrep: str
     name: str
-    F: str
-    flavor: str
-    twoI: int
-    mom: str
-    gamma: Any
-    gamma_i: bool
-    deriv: Union[str, None]
+    short: str = ""
 
-def mommy(s: str) -> str:
-    nums = re.findall(r'-?\d', s)
-    return "mom_" + "_".join(nums)
+    @property
+    def base_gamma(self):
+        gname, _ = self.ins.split('_')
+        return gamma_insertion_dict[gname]
 
-def parse_op(op: str) -> BareOperator:
-    keys = op.split('_')
-    gamma_mat = gamma_insertion_dict[keys[2]]
-    # if gamma_mat in ['rho','rho2','a1','b1']:
-    #     gamma_i= True
-    # else:
-    #     gamma_i = False
-    deriv = derivative_dict.get(keys[3], keys[3]) if keys[3] != 'none' else None
-    return BareOperator(
-        name=op,
-        F=keys[-1],
-        flavor=flavor_dict[keys[0]],
-        twoI=0,
-        mom=mommy(keys[1]),
-        gamma=gamma_mat,
-        gamma_i=gamma_i,
-        deriv=deriv
-    )
+    @property
+    def gamma_i(self) -> bool:
+        gname, _ = self.ins.split('_')
+        return gname in {'rho', 'rho2', 'a1', 'b1'}
 
-#t1p_dict
+    @property
+    def derivative(self):
+        _, d = self.ins.split('_')
+        return d if d != 'none' else None
 
-a1p_dict = {
-    'pi_none': '0mp',
-    'pi2_none': '0mp',
-    'rho_nabla': '0pp',
-    #'rho2_nabla': '0pp',
-    #'a1_B': '0pm',
-    #'b1_B': '0pp',
-    #'b1_nabla': '0mp'
-    
-}
+class DiMesonFactory:
+    def __init__(self):
+        self.pairs = []
 
-possible_insertions = list(a1p_dict.keys())
+    @staticmethod
+    def mom_to_str(m: Tuple[int,int,int]) -> str:
+        """Convert momentum to string like mom_0_0_-1"""
+        return f"mom_{m[0]}_{m[1]}_{m[2]}"
 
-def mom_to_str(m: Tuple[int, int, int]) -> str:
-    return ''.join(str(c) if c >= 0 else f"-{abs(c)}" for c in m)
+    @staticmethod
+    def mom_to_short(m: Tuple[int,int,int]) -> str:
+        """Convert (0,0,-1) → '00m1', (1,0,0) → '100'"""
+        return "".join(str(x) if x >= 0 else f"m{abs(x)}" for x in m)
 
-#moms_list = list(product([-1, 0, 1], repeat=3))
-moms_list = [
-    [(0, 0, 0),(0, 0, 0)],
-    [(0, 0, 1),(0, 0, -1)],
-    [(0, 1, 0),(0, -1, 0)],
-    [(1, 0, 0),(-1, 0, 0)]
-]
+    def generate(self, meson1_list, meson2_list, insertions1, insertions2,
+                 momentum_pairs, irrep="a1u"):
 
-#print(moms_list)
-#moms_list = 
+        m1_list = [meson1_list] if isinstance(meson1_list, str) else meson1_list
+        m2_list = [meson2_list] if isinstance(meson2_list, str) else meson2_list
 
-@dataclass
-class DiMesonOperator:
-    op1: BareOperator
-    op2: BareOperator
-    name: str
-    F: str
+        self.pairs = []
 
-    @classmethod
-    def generate_operators(
-        cls,
-        insertions_D: List[str],
-        insertions_pi: List[str],
-        momentum_pairs: List[Tuple[Tuple[int,int,int], Tuple[int,int,int]]]) -> Dict[str, 'DiMesonOperator']:
-            """
-            Generate all possible DiMesonOperator combinations for D-pi in a1p irrep.
-            Returns a dict keyed by operator name.
-            """
-            operators = {}
-            idx = 0
-            #di_mesons: List['DiMesonOperator'] = []
-            for pair in momentum_pairs:
-                mom1, mom2 = pair
-                mom1_str = mom_to_str(mom1)
-                mom2_str = mom_to_str(mom2)
-                for ins1 in insertions_D:
-                    g1, d1 = ins1.split('_')
-                    op1_str = f"D_{mom1_str}_{g1}_{d1}_a1p"
-                    op1 = parse_op(op1_str)
-                    for ins2 in insertions_pi:
-                        g2, d2 = ins2.split('_')
-                        op2_str = f"pion_{mom2_str}_{g2}_{d2}_a1p"
-                        op2 = parse_op(op2_str)
+        for (p1_raw, p2_raw) in momentum_pairs:
+            p1 = tuple(p1_raw)
+            p2 = tuple(p2_raw)
 
-                        dimeson_op_name = f"{op1.name}X{op2.name}"
-                        op = cls(op1=op1, op2=op2, name=dimeson_op_name, F='a1p')
-                        operators[dimeson_op_name] = op
-                        idx += 1
-                        #di_mesons.append(dim)
-                # Register ordered list for integer indexing
-            ordered = list(operators.values())
-            cls._ordered = ordered
-            cls._name_to_idx = {op.name: i for i, op in enumerate(ordered)}
-            cls._idx_to_name = {i: op.name for i, op in enumerate(ordered)}
+            if tuple(a + b for a, b in zip(p1, p2)) != (0, 0, 0):
+                continue
 
-            print(f"[DiMeson] Generated {len(ordered)} operators:")
-            for i, op in enumerate(ordered):
-                print(f"  op {i+1:2d}: {op.name}")
-            return operators
-    
-    @classmethod
-    def get_ordered(cls):
-        return cls._ordered
+            p1_short = self.mom_to_short(p1)
+            p2_short = self.mom_to_short(p2)
 
-    @classmethod
-    def name_to_index(cls, name: str) -> int:
-        return cls._name_to_idx[name]
+            for m1 in m1_list:
+                prefix1 = "D" if m1 == "D" else "PI" if m1 in {"p", "pion"} else m1[:2].upper()
+                for ins1 in insertions1:
+                    full1 = f"{m1}_mom_{p1[0]}_{p1[1]}_{p1[2]}_{ins1}_{irrep}"
+                    short1 = f"{prefix1}_{p1_short}_{ins1}"
 
-    @classmethod
-    def index_to_name(cls, idx: int) -> str:
-        return cls._idx_to_name[idx]
+                    op1 = BareOperator(meson=m1, mom=p1, ins=ins1, irrep=irrep,
+                                       name=full1, short=short1)
+
+                    for m2 in m2_list:
+                        prefix2 = "D" if m2 == "D" else "PI" if m2 in {"p", "pion"} else m2[:2].upper()
+                        for ins2 in insertions2:
+                            full2 = f"{m2}_mom_{p2[0]}_{p2[1]}_{p2[2]}_{ins2}_{irrep}"
+                            short2 = f"{prefix2}_{p2_short}_{ins2}"
+
+                            op2 = BareOperator(meson=m2, mom=p2, ins=ins2, irrep=irrep,
+                                               name=full2, short=short2)
+
+                            pair_short = f"{short1}x{short2}"
+                            pair_full = f"{full1}X{full2}"
+                            self.pairs.append((op1, op2, pair_short, pair_full))
+
+        print(f"[DiMesonFactory] Generated {len(self.pairs)} di-meson operators")
+        return self.pairs
