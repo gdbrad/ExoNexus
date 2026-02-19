@@ -25,7 +25,7 @@ def collect_data(datafile):
                 averaged_data[mass] = folded_correlator
                 print(f"Debug: averaged_data[{mass}] sample: {folded_correlator[:5]} (gvar: {isinstance(folded_correlator[0], gv.GVar)})")
 
-    # Compute effective masses and average over fit range to get single gvars
+    # effective masses and average over fit range to get single gvars
     effective_mass = {}
     fit_range = slice(8, 35)
     for mass in averaged_data:
@@ -34,12 +34,11 @@ def collect_data(datafile):
         if effective_mass_array.size:
             eff_mass_in_range = effective_mass_array[fit_range]
             if len(eff_mass_in_range) > 0:
-                effective_mass[mass] = gv.gvar(gv.mean(eff_mass_in_range),gv.sdev(eff_mass_in_range))  # Single gvar per mass
+                # give each m_c a single gvar 
+                effective_mass[mass] = gv.gvar(gv.mean(eff_mass_in_range),gv.sdev(eff_mass_in_range)) 
                 print(f"Effective mass for mass_{mass} (averaged): {effective_mass[mass]}")
-        else:
-            print(f"No valid effective mass data for mass_{mass}")
 
-    # Parameters: (1/a, a*m) for each mass
+    # (1/a, am) for each of 4 m_c
     a = 0.065 
     hbarc = 197.3269804
     a_inv = hbarc / (a * 1000)  #GeV 
@@ -62,10 +61,9 @@ def make_fcn_prior(param):
             for i, ci in enumerate(p['c']):
                 ans[s] += ci * (am / ainv) ** (2 * (i + 1))  # poly correction
         return ans
-    # Define prior for spline knots and coefficients
     prior = gv.gvar(dict(
-        mknot=['0.3(1)', '0.4(1)', '0.5(1)', '0.6(1)'],  # knots in lattice units, adjusted to mass range
-        fknot=['1.9(1)', '1.95(1)', '2.0(1)', '2.05(1)'],  # knot values in GeV, near D_s mass
+        mknot=['0.3(1)', '0.4(1)', '0.5(1)', '0.6(1)'],  # knots in lattice units
+        fknot=['1.9(1)', '1.95(1)', '2.0(1)', '2.05(1)'],  # near D_s mass (gev)
         c=['0(1)'] * 5,  # poly coeffs
     ))
     return F, prior
@@ -77,13 +75,13 @@ def main():
     print('param', param)
     print('data', data)
     
-    print('Performing fit..')
+    print('performing fit..')
     fit = lsqfit.nonlinear_fit(data=data, prior=prior, fcn=F, debug=True)
     print("\nFit results:")
     print(fit)
-    print("Fitted mknot:", fit.p['mknot'])
-    print("Fitted fknot:", fit.p['fknot'])
-    print("Fitted c:", fit.p['c'])
+    print("fitted mknot:", fit.p['mknot'])
+    print("fitted fknot:", fit.p['fknot'])
+    print("fitted c:", fit.p['c'])
 
     f = gv.cspline.CSpline(fit.p['mknot'], fit.p['fknot'])
 
@@ -95,13 +93,13 @@ def main():
         m = am / ainv
         print(f"Mass {s}: F(p) = {fit_output[s]}, Spline f(m) = {f(m)}, Data = {data[s]}")
 
-    # Interpolate to physical D_s mass using the full fit function F(p)
+    # interpolate to physical D_s mass using the full fit function F(p)
     m_ds_physical = 1.96835 
     def residual_float(m):
         a = 0.065 
         hbarc = 197.3269804
         a_inv = hbarc / (a * 1000)  #GeV 
-        temp_param = {'temp': (a_inv, m * a_inv)}  # Use actual a_inv, am = m * a_inv
+        temp_param = {'temp': (a_inv, m * a_inv)}  # (from simulation params) a_inv, am = m * a_inv
         def F_temp(p):
             f = gv.cspline.CSpline(p['mknot'], p['fknot'])
             ans = {}
@@ -116,28 +114,8 @@ def main():
         return gv.mean(F_temp_result['temp']) - m_ds_physical
     m_c_physical = fsolve(residual_float, x0=0.365)[0] 
     print('mc', m_c_physical)
-    # def residual(m):
-    #     a = 0.065 
-    #     hbarc = 197.3269804
-    #     a_inv = hbarc / a  #GeV 
-    #     temp_param = {'temp': (1.0, m)}  # Dummy ainv=1.0, am=m
-    #     # Define a new F function with the temporary parameter dictionary
-    #     def F_temp(p):
-    #         f = gv.cspline.CSpline(p['mknot'], p['fknot'])
-    #         ans = {}
-    #         for s in temp_param:
-    #             ainv, am = temp_param[s]
-    #             m_val = am / ainv
-    #             ans[s] = f(m_val)
-    #             for i, ci in enumerate(p['c']):
-    #                 ans[s] += ci * (m_val) ** (2 * (i + 1))
-    #         return ans
-    #     F_temp_result = F_temp(fit.p)
-    #     return gv.mean(F_temp_result['temp']) - m_ds_physical
-    # m_c_physical = fsolve(residual, x0=0.365)[0]  # Adjusted initial guess
-    # print('mc',m_c_physical)
     m_c_physical_gvar = gv.gvar(m_c_physical, 0.001)  # TODO FIX THIS SHOULD BE GV.SDEV
-    print(f"Interpolated charm quark mass at physical D_s point: {m_c_physical_gvar:.4f} (lattice units)")
+    print(f"Interpolated m_c at physical D_s: {m_c_physical_gvar:.4f} (lattice units)")
 
     # Create error budget
     outputs = {'f(1)': f(1), 'f(5)': f(5), 'f(9)': f(9), 'm_c_physical': m_c_physical_gvar}
