@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 import h5py
 import yaml
@@ -12,18 +11,26 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True)
     parser.add_argument("--cfg_id", type=int, required=True)
-    parser.add_argument("--outdir", default="results_per_op")
+    parser.add_argument("--outdir", required=True)
     args = parser.parse_args()
 
+    # -----------------------------------------------------
+    # Load YAML
+    # -----------------------------------------------------
     yaml_path = Path(args.yaml_file)
     with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
 
     ens = list(yaml_data.keys())[0]
     settings = yaml_data[ens]
+
     params = settings["params"]
     system = settings["system"]
+    operators = settings["operators"]
 
+    # -----------------------------------------------------
+    # Initialize correlator factory
+    # -----------------------------------------------------
     proc = CorrelatorFactory(
         ens=ens,
         cfg_id=args.cfg_id,
@@ -33,63 +40,130 @@ def main():
         ntsrc=params["ntsrc"],
         tsrc_step=params.get("tsrc_step", 8),
     )
+
     proc.load_for_system(system)
 
-    outdir = Path(args.outdir) / f"cfg{args.cfg_id:04d}"
+    # -----------------------------------------------------
+    # One file per configuration
+    # -----------------------------------------------------
+    outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    print("DEBUG: mom_pairs from YAML:", settings["mom_pairs"])
-    print("DEBUG: type:", type(settings["mom_pairs"]))
-    print("DEBUG: len:", len(settings["mom_pairs"]))
 
-    momentum_pairs = []
-    for pair in settings["mom_pairs"]:
-        p1 = tuple(pair[0])   # e.g. [0,0,0] → (0,0,0)
-        p2 = tuple(pair[1])   # e.g. [0,0,0] → (0,0,0)
-        momentum_pairs.append((p1, p2))
+    outfile = outdir / f"cfg{args.cfg_id:04d}.h5"
 
-    print(f"DEBUG: Converted {len(momentum_pairs)} momentum pairs")
+    if outfile.exists():
+        print(f"[SKIP] {outfile} already exists")
+        return
 
-    # Generate operators
-    factory = DiMesonFactory()
-    factory.generate(
-        meson1_list=settings.get("meson1", []),
-        meson2_list=settings.get("meson2", []),
-        insertions1=settings.get("ins_1", []),      
-        insertions2=settings.get("ins_2", []),     
-        momentum_pairs=momentum_pairs,
-        irrep=settings.get("irrep", "a1u")
-    )
+    print(f"[INFO] Writing full matrix to {outfile}")
 
-    # Save lookup table
-    lookup = {pair_short: pair_full for _, _, pair_short, pair_full in factory.pairs}
-    yaml.dump(lookup, open(outdir / "operator_lookup.yaml", "w"), default_flow_style=False)
+    # =====================================================
+    # Open configuration file
+    # =====================================================
+    with h5py.File(outfile, "w") as f_cfg:
 
-    print(f"[INFO] Computing {len(factory.pairs)} operator pairs")
+        f_cfg.attrs["ensemble"] = ens
+        f_cfg.attrs["cfg_id"] = args.cfg_id
+        f_cfg.attrs["nvecs"] = params["nvecs"]
+        f_cfg.attrs["nt"] = params["lt"]
+        f_cfg.attrs["ntsrc"] = params["ntsrc"]
 
-    for op1, op2, pair_short, pair_full in factory.pairs:
-        filename = f"{pair_short}.h5"  # → op000Dxop000PI.h5
-        outfile = outdir / filename
+        # =====================================================
+        # Loop over irrep blocks
+        # =====================================================
+        for ptot_irrep in operators:
 
-        with h5py.File(outfile, "w") as f:
-            grp = f.create_group("corr")
+            ptot_irrep_settings = operators[ptot_irrep]
 
-            success = CorrelatorFactory.two_pt_single_dimeson(
-                proc=proc,
-                op1_src=op1,
-                op2_src=op2,
-                op1_snk=op1,
-                op2_snk=op2,
-                h5_group=grp,
-                tsrc_avg=False
+            irrep = ptot_irrep_settings["irrep"]
+            ptot = int(ptot_irrep_settings["ptot"])
+
+            if ptot != 0:
+                raise NotImplementedError("Only P=0 supported")
+
+            meson1 = ptot_irrep_settings["meson1"]
+            meson2 = ptot_irrep_settings["meson2"]
+            ins1 = ptot_irrep_settings["ins_1"]
+            ins2 = ptot_irrep_settings["ins_2"]
+
+            # -------------------------------------------------
+            # Extract single-meson momenta
+            # -------------------------------------------------
+            raw_momenta = [
+                tuple(mom_pair[0])
+                for mom_pair in ptot_irrep_settings["mom_pairs"]
+            ]
+
+            print(f"[INFO] {irrep}: raw momenta count = {len(raw_momenta)}")
+
+            # -------------------------------------------------
+            # Generate projected operators
+            # -------------------------------------------------
+            factory = DiMesonFactory()
+
+            factory.generate_projected_zero_momentum(
+                meson1_list=meson1,
+                meson2_list=meson2,
+                insertions1=ins1,
+                insertions2=ins2,
+                momentum_list=raw_momenta,
+                irrep=irrep
             )
 
-            if success:
-                grp.attrs["pair"] = pair_short
-                grp.attrs["full_name"] = pair_full
-                print(f"→ {filename}")
-            else:
-                print(f"→ [FAILED] {filename}")
-                outfile.unlink(missing_ok=True)
+            pairs = factory.pairs
+            n_ops = len(pairs)
+
+            print(f"[INFO] {irrep}: {n_ops} projected operators")
+            print(f"[INFO] Computing Hermitian-reduced {n_ops}x{n_ops} matrix")
+
+            # -------------------------------------------------
+            # Create irrep group
+            # -------------------------------------------------
+            grp_irrep = f_cfg.create_group(irrep)
+            grp_irrep.attrs["ptot"] = ptot
+            grp_irrep.attrs["n_ops"] = n_ops
+
+            # Store operator lookup inside H5
+            for _, _, short, full in pairs:
+                grp_irrep.attrs[f"op_{short}"] = full
+
+            # -------------------------------------------------
+            # Hermitian-reduced matrix (upper triangle only)
+            # -------------------------------------------------
+            for i, A in enumerate(pairs):
+                for j in range(i, n_ops):
+
+                    B = pairs[j]
+
+                    op1_src, op2_src, short_A, full_A = A
+                    op1_snk, op2_snk, short_B, full_B = B
+
+                    dataset_name = f"{short_A}__X__{short_B}"
+
+                    try:
+                        results = CorrelatorFactory.two_pt_dimeson(
+                        proc=proc,
+                        op1_src=op1_src,
+                        op2_src=op2_src,
+                        op1_snk=op1_snk,
+                        op2_snk=op2_snk
+                    )
+
+                        pair_group = grp_irrep.create_group(dataset_name)
+
+                        for key, array in results.items():
+                            pair_group.create_dataset(
+                                key,
+                                data=array,
+                                compression="gzip"
+                            )
+
+
+                    except Exception as e:
+                        print(f"[ERROR] {dataset_name}")
+                        print(e)
+
+    print(f"[DONE] cfg {args.cfg_id:04d} complete.")
 
 
 if __name__ == "__main__":

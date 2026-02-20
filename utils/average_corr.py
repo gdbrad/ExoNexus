@@ -1,7 +1,4 @@
-# # final_average_32x32.py
-# # ONLY operators 0–31 → 32×32 matrix → memory < 400 MB → NEVER crashes
-
-import h5py
+import h5py 
 import numpy as np
 import gvar as gv
 from pathlib import Path
@@ -11,7 +8,7 @@ from src.dimeson_factory import DiMesonOperator
 merged_file = Path("merged_Dpi.h5")
 output_file = Path("Dpi_direct_8x8_averaged.h5")
 tsrc_step   = 8
-max_op      = 8   # ← 0 to 31 inclusive → 32×32
+max_op      = 8 
 # ==============================================================
 
 print(f"[LOAD] {merged_file} → using only op00 to op{max_op:02d}")
