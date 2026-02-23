@@ -1,8 +1,8 @@
 import os
 import argparse
 
-for beta in [3.4,3.6]:
-    dir_path = f"{beta}_s{s}t{}
+# for beta in [3.4,3.6]:
+#     dir_path = f"{beta}_s{s}t{}
     
 DIRECTORIES =  { 
 "meson":             "/p/scratch/exotichadrons/su3-distillation/meson_sdb/",

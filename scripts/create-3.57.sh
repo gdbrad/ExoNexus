@@ -1,1 +1,0 @@
-python3 create_tasks.py --in_file 'ens_files/gio/a085m300.yml' --cfg_i 200 --cfg_f 4000 --cfg_step 50 --run_dir 'res' --overwrite --list_tasks chroma_eigs eigs chroma_peram_mg peram_mg chroma_meson meson --num_vecs 64 

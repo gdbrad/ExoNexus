@@ -1,1 +1,0 @@
-python3 create_tasks.py --in_file 'ens_files/b3.6_ms0.25_mud-0.013_s32t64.yml' --cfg_i 30 --cfg_f 4330 --cfg_step 10 --run_dir 'res' --overwrite --list_tasks chroma_disco disco --num_vecs 64 --ini-path 'eric-L32T64/ini-disco'

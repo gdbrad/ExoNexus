@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<chroma>
+<Param>
+  <InlineMeasurements>
+    <elem>
+      <Name>MESON_MATELEM_COLORVEC_SUPERB</Name>
+      <Frequency>1</Frequency>
+      <Param>
+        <version>4</version>
+        <use_derivP>true</use_derivP>
+        <t_source>{{ t_start }}</t_source>
+        <Nt_forward>{{ NT }}</Nt_forward>
+        <num_vecs>{{ meson_nvec }}</num_vecs>
+        <mom2_min>0</mom2_min>
+        <mom2_max>2</mom2_max>
+        <phase>{{ phase|join(' ') }}</phase>
+        <displacement_length>1</displacement_length>
+        <decay_dir>3</decay_dir>
+        <max_tslices_in_contraction>{{ meson_chroma_max_tslices_in_contraction }}</max_tslices_in_contraction>
+        <mom_list>
+        {% for momentum in momentum_list %}
+          <elem>{{ momentum }}</elem>
+        {% endfor %}
+        </mom_list>
+        <displacement_list>
+        {%- for displacement in displacement_list -%}
+          <elem>{{ displacement | join }}</elem>
+        {%- endfor %}
+      </displacement_list>
+        <LinkSmearing>
+          <LinkSmearingType>STOUT_SMEAR</LinkSmearingType>
+          <link_smear_fact>0.1</link_smear_fact>
+          <link_smear_num>10</link_smear_num>
+          <no_smear_dir>3</no_smear_dir>
+        </LinkSmearing>
+      </Param>
+      <NamedObject>
+        <gauge_id>default_gauge_field</gauge_id>
+        <colorvec_files><elem>{{ eigs_path }}/eigs_numvecs{{ num_vecs }}_cfg{{ cfg_id }}.sdb</elem></colorvec_files>
+        <meson_op_file>{{ data_path }}/meson_sdb/meson-{{ meson_nvec }}_cfg{{ cfg_id }}.sdb</meson_op_file>
+      </NamedObject>
+    </elem>
+  </InlineMeasurements>
+    <nrow>{{ NL }} {{ NL }} {{ NL }} {{ NT }}</nrow>
+</Param>
+<RNG>
+  <Seed>
+    <elem>11</elem>
+    <elem>11</elem>
+    <elem>11</elem>
+    <elem>0</elem>
+  </Seed>
+</RNG>
+  <Cfg>
+    <cfg_type>SZINQIO</cfg_type>
+    <cfg_file>{{ cfg_path }}/{{ cfg_name }}{{ cfg_id }}.lime</cfg_file>
+    <parallel_io>false</parallel_io>
+  </Cfg>
+</chroma>

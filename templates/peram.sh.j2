@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --nodes={{ prop_slurm_nodes }}
+#SBATCH --partition={{ partition }}
+#SBATCH --gpu-bind=none
+#SBATCH --account={{ account }}
+#SBATCH -t {{ prop_chroma_minutes }}
+#SBATCH --gres=gpu:{{ num_gpu }}
+#SBATCH -o {{ data_path }}/chroma_out/peram_{{ flavor }}_{{ inverter_type }}_{{ cfg_id }}.out
+#SBATCH -e {{ data_path }}/chroma_out/peram_{{ flavor }}_{{ inverter_type }}_{{ cfg_id }}.err
+
+export USERINSTALLATIONS=/p/project1/cslnpp/slnpp032/QCD/JUWELS_BOOSTER_EASYBUILD/TEST_INSTALL/
+ml Stages/2025
+ml GCC/13.3.0
+ml ParaStationMPI/5.10.0-1
+ml UCX-settings/RC-CUDA
+ml MPI-settings/CUDA
+ml CHROMA/2025-10-29devel
+vers=jwb_pmpi
+
+chroma=${EBROOTCHROMA}/bin/chroma
+
+eigs={{ eigs_path }}/eigs_numvecs{{ num_vecs_perams }}_cfg{{ cfg_id }}.sdb
+{
+  if [ ! -f "${eigs}" ]; then
+    echo "Missing eigs file: ${eigs}"
+    exit 0
+  fi
+}
+
+export OPENBLAS_NUM_THREADS=16
+export OMP_NUM_THREADS=16
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export QUDA_ENABLE_GDR=1
+export QUDA_ENABLE_DEVICE_MEMORY_POOL=0
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+
+BASE_DIR={{ data_path }}
+LAUNCH_DIR={{ launch_path }}
+if [ ! -d "$BASE_DIR/res/log/perams" ]; then
+  mkdir -p "$BASE_DIR/res/log/perams";
+fi 
+if [ ! -d "$BASE_DIR/res/out/perams" ]; then
+  mkdir -p "$BASE_DIR/res/out/perams";
+fi 
+
+log=$BASE_DIR/res/log/perams/perams_{{ flavor }}_{{ inverter_type }}_{{ cfg_id }}.log
+in=$LAUNCH_DIR/ini-perams-{{ flavor }}-{{ inverter_type }}/cnfg{{ cfg_id }}/peram_{{ flavor }}_{{ inverter_type }}_cfg{{ cfg_id }}.ini.xml
+out=$BASE_DIR/res/out/perams/perams_{{ flavor }}_{{ inverter_type }}_{{ cfg_id }}.out.xml
+stdout=$BASE_DIR/chroma_out/perams_{{ flavor }}_{{ inverter_type }}_{{ cfg_id }}.out
+
+export OPTS=" -geom {{ prop_chroma_geometry|join(' ') }}"
+
+echo "START $(date)"
+
+{% set num_tasks = prop_slurm_nodes * num_gpu %}
+srun -n {{ num_tasks }} $chroma $OPTS -gpudirect -i $in -o $out -l $log > $stdout 2>&1
+
+echo "FINISH $(date)"

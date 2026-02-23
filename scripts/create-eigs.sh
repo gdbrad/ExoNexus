@@ -1,1 +1,0 @@
-python3 create_tasks_gio_ens.py --ini_dir 'ens_files/gio/' --cfg_i 1000 --cfg_f 1100 --cfg_step 50 --run_dir 'res' --overwrite --list_tasks chroma_eigs eigs peram_mg chroma_peram_mg meson chroma_meson

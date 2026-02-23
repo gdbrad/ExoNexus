@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 data/
+=======
+b3.4_*
+b3.6_*
+b3.4-*
+b3.6-*
+>>>>>>> 5e7073b50942d79c19243dd28da76bc3d86770dd
 analysis
 eric-l40t64
 eric-l40t64-serial

@@ -1,0 +1,175 @@
+<?xml version="1.0"?>
+<chroma>
+  <Param>
+    <InlineMeasurements>
+      <elem>
+        <Name>PROP_AND_MATELEM_DISTILLATION_SUPERB</Name>
+        <Frequency>1</Frequency>
+        <Param>
+          <Contractions>
+            <mass_label>{{ mass_label }}</mass_label>
+            <num_vecs>{{ num_vecs_perams }}</num_vecs>
+            {% set step = num_tsrc -%}
+            {% set max_val = prop_t_fwd -%}
+            {% set values = [] -%}
+            {% for i in range(0, max_val, step) -%}
+              {%- set _ = values.append(i) -%}
+            {%- endfor %}
+            <t_sources>{{ values | join(' ') }}</t_sources>
+            <Nt_forward>{{ prop_t_fwd }}</Nt_forward>
+            <Nt_backward>{{ prop_t_back }}</Nt_backward>
+            <decay_dir>{{ decay_dir }}</decay_dir>
+            <num_tries>{{ num_tries }}</num_tries>
+            <max_rhs>{{ max_rhs }}</max_rhs>
+            <phase>{{ phase|join(' ') }}</phase>
+          </Contractions>
+
+          <Propagator>
+            <version>10</version>
+            <quarkSpinType>FULL</quarkSpinType>
+            <obsvP>false</obsvP>
+            <numRetries>1</numRetries>
+
+            <FermionAction>
+              <FermAct>CLOVER</FermAct>
+              <Mass>{{ quark_mass }}</Mass>
+              <clovCoeff>{{ prop_clov_coeff }}</clovCoeff>
+              <FermState>
+                <Name>STOUT_FERM_STATE</Name>
+                <rho>{{ rho }}</rho>
+                <orthog_dir>-1</orthog_dir>
+                <n_smear>6</n_smear>
+                <FermionBC>
+                  <FermBC>SIMPLE_FERMBC</FermBC>
+                  <boundary>1 1 1 -1</boundary>
+                </FermionBC>
+              </FermState>
+            </FermionAction>
+
+            <!-- Inverter selection: MG or Clover -->
+            <InvertParam>
+              {% if inverter_type == "mg" %}
+              <invType>QUDA_MULTIGRID_CLOVER_INVERTER</invType>
+              <CloverParams>
+                <Mass>{{ quark_mass }}</Mass>
+                <clovCoeff>{{ prop_clov_coeff }}</clovCoeff>
+              </CloverParams>
+              <RsdTarget>{{ precision }}</RsdTarget>
+              <Delta>0.1</Delta>
+              <Pipeline>4</Pipeline>
+              <MaxIter>{{ max_iter|default(10000) }}</MaxIter>
+              <RsdToleranceFactor>8.0</RsdToleranceFactor>
+              <AntiPeriodicT>true</AntiPeriodicT>
+              <SolverType>GCR</SolverType>
+              <Verbose>true</Verbose>
+              <AsymmetricLinop>true</AsymmetricLinop>
+              <CudaReconstruct>RECONS_12</CudaReconstruct>
+              <CudaSloppyPrecision>SINGLE</CudaSloppyPrecision>
+              <CudaSloppyReconstruct>RECONS_8</CudaSloppyReconstruct>
+              <AxialGaugeFix>false</AxialGaugeFix>
+              <AutotuneDslash>true</AutotuneDslash>
+
+              <MULTIGRIDParams>
+                <Verbosity>true</Verbosity>
+                <Precision>HALF</Precision>
+                <Reconstruct>RECONS_8</Reconstruct>
+                <Blocking>
+                  <elem>4 4 4 4</elem>
+                  <elem>2 2 2 2</elem>
+                </Blocking>
+                <CoarseSolverType>
+                  <elem>GCR</elem>
+                  <elem>CA_GCR</elem>
+                </CoarseSolverType>
+                <CoarseResidual>0.1 0.1 0.1</CoarseResidual>
+                <MaxCoarseIterations>12 12 8</MaxCoarseIterations>
+                <RelaxationOmegaMG>1.0 1.0 1.0</RelaxationOmegaMG>
+                <SmootherType>
+                  <elem>CA_GCR</elem>
+                  <elem>CA_GCR</elem>
+                  <elem>CA_GCR</elem>
+                </SmootherType>
+                <SmootherTol>0.25 0.25 0.25</SmootherTol>
+                <NullVectors>24 32</NullVectors>
+                <Pre-SmootherApplications>0 0</Pre-SmootherApplications>
+                <Post-SmootherApplications>8 8</Post-SmootherApplications>
+                <SubspaceSolver>
+                  <elem>CG</elem>
+                  <elem>CG</elem>
+                </SubspaceSolver>
+                <RsdTargetSubspaceCreate>5e-06 5e-06</RsdTargetSubspaceCreate>
+                <MaxIterSubspaceCreate>500 500</MaxIterSubspaceCreate>
+                <MaxIterSubspaceRefresh>500 500</MaxIterSubspaceRefresh>
+                <OuterGCRNKrylov>20</OuterGCRNKrylov>
+                <PrecondGCRNKrylov>10</PrecondGCRNKrylov>
+                <GenerateNullspace>true</GenerateNullspace>
+                <GenerateAllLevels>true</GenerateAllLevels>
+                <CheckMultigridSetup>false</CheckMultigridSetup>
+                <CycleType>MG_RECURSIVE</CycleType>
+                <SchwarzType>ADDITIVE_SCHWARZ</SchwarzType>
+                <RelaxationOmegaOuter>1.0</RelaxationOmegaOuter>
+                <SetupOnGPU>1 1</SetupOnGPU>
+              </MULTIGRIDParams>
+
+              <SubspaceID>mg_subspace</SubspaceID>
+              {% else %}
+              <invType>QUDA_CLOVER_INVERTER</invType>
+              <SolverType>BICGSTAB</SolverType>
+              <MaxIter>60000</MaxIter>
+              <RsdTarget>1.0e-6</RsdTarget>
+              <AntiPeriodicT>true</AntiPeriodicT>
+              <Delta>0.1</Delta>
+              <Verbose>false</Verbose>
+              <CloverParams>
+                <Mass>{{ quark_mass }}</Mass>
+                <clovCoeff>{{ prop_clov_coeff }}</clovCoeff>
+              </CloverParams>
+              <AutotuneDslash>true</AutotuneDslash>
+              <AsymmetricLinop>true</AsymmetricLinop>
+              <CudaReconstruct>RECONS_12</CudaReconstruct>
+              <CudaSloppyPrecision>SINGLE</CudaSloppyPrecision>
+              <CudaSloppyReconstruct>RECONS_12</CudaSloppyReconstruct>
+              <AxialGaugeFix>false</AxialGaugeFix>
+              <DumpOnFail>true</DumpOnFail>
+              {% endif %}
+            </InvertParam>
+          </Propagator>
+        </Param>
+
+        <NamedObject>
+          <gauge_id>default_gauge_field</gauge_id>
+          <colorvec_files><elem>{{ eigs_path }}/eigs_numvecs{{ num_vecs }}_cfg{{ cfg_id }}.sdb</elem></colorvec_files>
+          <prop_op_file>{{ output_sdb_path }}/peram_{{ num_vecs_perams }}_cfg{{ cfg_id }}.sdb</prop_op_file>
+        </NamedObject>
+      </elem>
+
+      <!-- Only include subspace erasure if using multigrid -->
+      {% if inverter_type == "mg" %}
+      <elem>
+        <Name>ERASE_QUDA_MULTIGRID_SUBSPACE</Name>
+        <Frequency>1</Frequency>
+        <NamedObject>
+          <object_id>mg_subspace</object_id>
+        </NamedObject>
+      </elem>
+      {% endif %}
+    </InlineMeasurements>
+
+    <nrow>{{ NL }} {{ NL }} {{ NL }} {{ NT }}</nrow>
+  </Param>
+
+  <RNG>
+    <Seed>
+      <elem>11</elem>
+      <elem>11</elem>
+      <elem>11</elem>
+      <elem>0</elem>
+    </Seed>
+  </RNG>
+
+  <Cfg>
+    <cfg_type>SZINQIO</cfg_type>
+    <cfg_file>{{ cfg_path }}/{{ cfg_name }}{{ cfg_id }}.lime</cfg_file>
+    <parallel_io>false</parallel_io>
+  </Cfg>
+</chroma>
