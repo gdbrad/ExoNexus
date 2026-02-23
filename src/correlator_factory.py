@@ -170,7 +170,6 @@ class CorrelatorFactory(DistillationObjectsIO):
 
         flavor_map = {
             "light_light": (perams["light_fwd"], perams["light_bwd"]),
-            "light_charm": (perams["charm_fwd"], perams["light_bwd"]),
             "charm_light": (perams["light_fwd"], perams["charm_bwd"]),
             "charm_charm": (perams["charm_fwd"], perams["charm_bwd"]),
         }

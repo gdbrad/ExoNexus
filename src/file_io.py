@@ -224,63 +224,63 @@ class DistillationObjectsIO:
     # Build forward / backward perambulator map
     # ------------------------------------------------------------------
 
-    def perambulators(self) -> dict:
-        """
-        Select only charm perambulator slices whose physical time matches the light ones.
-        This is the ONLY safe way when light and charm have different tsrc spacing.
-        """
-        light_fwd = self.peram_light   # shape (8, 64, ...)
-        charm_fwd = self.peram_charm   # shape (16, 64, ...)
+    # def perambulators(self) -> dict:
+    #     """
+    #     Select only charm perambulator slices whose physical time matches the light ones.
+    #     This is the ONLY safe way when light and charm have different tsrc spacing.
+    #     """
+    #     light_fwd = self.peram_light   # shape (8, 64, ...)
+    #     charm_fwd = self.peram_charm   # shape (16, 64, ...)
 
-        # These are the actual physical times present in each file
-        # Chroma names: t_source_0, t_source_4, t_source_8, ...
-        light_times  = np.arange(0, 64, 8)[:light_fwd.shape[0]]   # → [0,8,16,24,32,40,48,56]
-        charm_times  = np.arange(0, 64, 8)[:charm_fwd.shape[0]]   # → [0,4,8,...,60]
+    #     # These are the actual physical times present in each file
+    #     # Chroma names: t_source_0, t_source_4, t_source_8, ...
+    #     light_times  = np.arange(0, 64, 8)[:light_fwd.shape[0]]   # → [0,8,16,24,32,40,48,56]
+    #     charm_times  = np.arange(0, 64, 8)[:charm_fwd.shape[0]]   # → [0,4,8,...,60]
 
-        print(f"[PERAM] Light sources at t = {light_times.tolist()}")
-        print(f"[PERAM] Charm sources at t = {charm_times.tolist()}")
+    #     print(f"[PERAM] Light sources at t = {light_times.tolist()}")
+    #     print(f"[PERAM] Charm sources at t = {charm_times.tolist()}")
 
-        # Find which charm indices correspond to light times
-        charm_indices = []
-        for t in light_times:
-            matches = np.where(charm_times == t)[0]
-            if len(matches) == 0:
-                raise RuntimeError(f"Charm perambulator missing t={t} (needed for light source)")
-            charm_indices.append(matches[0])
+    #     # Find which charm indices correspond to light times
+    #     charm_indices = []
+    #     for t in light_times:
+    #         matches = np.where(charm_times == t)[0]
+    #         if len(matches) == 0:
+    #             raise RuntimeError(f"Charm perambulator missing t={t} (needed for light source)")
+    #         charm_indices.append(matches[0])
 
-        charm_fwd_matched = charm_fwd[charm_indices]   # ← THIS IS THE KEY LINE
+    #     charm_fwd_matched = charm_fwd[charm_indices]   # ← THIS IS THE KEY LINE
 
-        print(f"[PERAM] Selected charm indices: {charm_indices}")
-        print(f"[PERAM] Using {len(light_times)} PHYSICALLY IDENTICAL time sources")
+    #     print(f"[PERAM] Selected charm indices: {charm_indices}")
+    #     print(f"[PERAM] Using {len(light_times)} PHYSICALLY IDENTICAL time sources")
 
-        # Backward propagators with correct γ₅-hermiticity sign
-        light_bwd = reverse_perambulator_time(light_fwd)
-        charm_bwd = reverse_perambulator_time(charm_fwd_matched)
+    #     # Backward propagators with correct γ₅-hermiticity sign
+    #     light_bwd = reverse_perambulator_time(light_fwd)
+    #     charm_bwd = reverse_perambulator_time(charm_fwd_matched)
 
-        self.ntsrc = len(light_times)
+    #     self.ntsrc = len(light_times)
 
-        return {
-            "light_fwd": light_fwd,
-            "light_bwd": light_bwd,
-            "charm_fwd": charm_fwd_matched,
-            "charm_bwd": charm_bwd,
-        }
+    #     return {
+    #         "light_fwd": light_fwd,
+    #         "light_bwd": light_bwd,
+    #         "charm_fwd": charm_fwd_matched,
+    #         "charm_bwd": charm_bwd,
+    #     }
 
-    def perambulators(self):
-        light_fwd = self.peram_light
-        charm_fwd = self.peram_charm
-        n_use = min(light_fwd.shape[0], charm_fwd.shape[0])
-        print(f"[PERAM] Using {n_use} common sources (light: {light_fwd.shape[0]}, charm: {charm_fwd.shape[0]})")
+    # def perambulators(self):
+    #     light_fwd = self.peram_light
+    #     charm_fwd = self.peram_charm
+    #     n_use = min(light_fwd.shape[0], charm_fwd.shape[0])
+    #     print(f"[PERAM] Using {n_use} common sources (light: {light_fwd.shape[0]}, charm: {charm_fwd.shape[0]})")
         
-        light_fwd = light_fwd[:n_use]
-        charm_fwd = charm_fwd[:n_use]
+    #     light_fwd = light_fwd[:n_use]
+    #     charm_fwd = charm_fwd[:n_use]
         
-        light_bwd = reverse_perambulator_time(light_fwd)
-        charm_bwd = reverse_perambulator_time(charm_fwd)
+    #     light_bwd = reverse_perambulator_time(light_fwd)
+    #     charm_bwd = reverse_perambulator_time(charm_fwd)
         
-        self.ntsrc = n_use
-        return {"light_fwd": light_fwd, "light_bwd": light_bwd,
-                "charm_fwd": charm_fwd, "charm_bwd": charm_bwd}
+    #     self.ntsrc = n_use
+    #     return {"light_fwd": light_fwd, "light_bwd": light_bwd,
+    #             "charm_fwd": charm_fwd, "charm_bwd": charm_bwd}
 
     def perambulators(self) -> dict:
         """
