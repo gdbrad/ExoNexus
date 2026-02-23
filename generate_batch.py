@@ -9,6 +9,7 @@ def chunk_list(lst, n):
         yield lst[i:i + n]
 
 def generate_batch_scripts(ini_file: str, chunk_size: int = 12):
+    # 
     ini_path = Path(ini_file).resolve()
     ini_dir = ini_path.parent
 
