@@ -1,1 +1,0 @@
-python3 scripts/create_tasks_ens.py --in_file 'ens-files/b3.6/b3.6_s64t64.yml' --run_dir 'b3.6_s64t64/'  --cfg_i 40 --cfg_f 9960 --cfg_step 40 --run_dir 'res' --overwrite --list_tasks chroma_eigs eigs chroma_peram_mg peram_mg chroma_meson meson

@@ -62,7 +62,7 @@ if [ "$type" != "meson" ] && [ "$type" != "peram" ] && [ "$type" != "peram_charm
 fi
 
 # Set BASE_DIR based on ensemble and type
-BASE_DIR="/p/scratch/exotichadrons/su3-distillation/$ensemble"
+BASE_DIR="/p/scratch/exotichadrons/su3-distillation/data/$ensemble"
 
 if [ ! -d "$BASE_DIR" ]; then
     echo "Error: Ensemble directory $BASE_DIR does not exist."
