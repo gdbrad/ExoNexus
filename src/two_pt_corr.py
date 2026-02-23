@@ -4,6 +4,7 @@ import yaml
 from pathlib import Path
 
 from correlator_factory import CorrelatorFactory
+from meson_factory import MesonFactory
 from dimeson_factory import DiMesonFactory
 
 

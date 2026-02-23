@@ -79,8 +79,7 @@ class BareOperator:
     def derivative(self):
         _, d = self.ins.split('_')
         return d if d != 'none' else None
-
-
+    
 # ---------------------------------------------------------
 # DiMesonFactory
 # ---------------------------------------------------------

@@ -5,53 +5,68 @@ import h5py
 BAD_CFG = 3400   # update if needed
 
 
-def average_tsrc_matrix(C, tsrc_step=8, drop_first=True):
+def average_tsrc_matrix(C, tsrc_step=8):
     """
     C shape: (Ncfg, Ntsrc, N, N, Nt)
-    Returns: (Ncfg, N, N, Nt)
     """
 
-    if drop_first:
-        C = C[:, 1:, ...]
+    # Drop corrupted tsrc=0
+    C = C[:, 1:, ...]   # remove first source
 
-    Ncfg, Ntsrc, N, _, Nt = C.shape
+    Ncfg, Ntsrc_eff, N, _, Nt = C.shape
 
-    shifts = np.arange(Ntsrc) * tsrc_step
-    rolled = np.empty_like(C)
+    avg = np.zeros((Ncfg, N, N, Nt), dtype=C.dtype)
 
-    for k in range(Ntsrc):
-        rolled[:, k] = np.roll(C[:, k], -shifts[k], axis=-1)
+    for k in range(Ntsrc_eff):
+        shift = -(k + 1) * tsrc_step
+        avg += np.roll(C[:, k, :, :, :], shift,axis=-1)
 
-    return rolled.mean(axis=1)
+    avg /= Ntsrc_eff
 
+    return avg
 
-def average_tsrc_single(C, tsrc_step=8, drop_first=True):
+def average_tsrc_single(C, tsrc_step=8):
     """
     C shape: (Ncfg, Ntsrc, Nt)
-    Returns: (Ncfg, Nt)
     """
 
-    if drop_first:
-        C = C[:, 1:, ...]
+    C = C[:, 1:, ...]   # drop tsrc=0
 
-    Ncfg, Ntsrc, Nt = C.shape
+    Ncfg, Ntsrc_eff, Nt = C.shape
 
-    shifts = np.arange(Ntsrc) * tsrc_step
-    rolled = np.empty_like(C)
+    avg = np.zeros((Ncfg, Nt), dtype=C.dtype)
 
-    for k in range(Ntsrc):
-        rolled[:, k] = np.roll(C[:, k], -shifts[k], axis=-1)
+    for k in range(Ntsrc_eff):
+        shift = -(k + 1) * tsrc_step
+        avg += np.roll(C[:, k, :], shift,axis=-1)
 
-    return rolled.mean(axis=1)
+    avg /= Ntsrc_eff
 
+    return avg
+
+
+BAD_INDEX = 58   # verified bad cfg3400 index
+
+# def drop_bad_configs(C15, C6, CD, Cpi, cfg_numbers):
+
+#     print("Dropping config index:", BAD_INDEX)
+
+#     C15 = np.delete(C15, BAD_INDEX, axis=0)
+#     C6  = np.delete(C6,  BAD_INDEX, axis=0)
+#     CD  = np.delete(CD,  BAD_INDEX, axis=0)
+#     Cpi = np.delete(Cpi, BAD_INDEX, axis=0)
+#     cfg_numbers = np.delete(cfg_numbers, BAD_INDEX, axis=0)
+
+#     return C15, C6, CD, Cpi, cfg_numbers
 
 def drop_bad_configs(C15, C6, CD, Cpi, cfg_numbers):
 
-    bad_mask = (cfg_numbers == BAD_CFG)
+    nan_cfgs = np.unique(np.argwhere(np.isnan(C15))[:,0])
 
-    print("Dropping configs:", cfg_numbers[bad_mask])
+    print("Dropping cfg indices:", nan_cfgs)
 
-    keep = ~bad_mask
+    keep = np.ones(C15.shape[0], dtype=bool)
+    keep[nan_cfgs] = False
 
     return (
         C15[keep],
@@ -64,8 +79,8 @@ def drop_bad_configs(C15, C6, CD, Cpi, cfg_numbers):
 
 def main():
 
-    input_file  = "b3.4-s32t64.h5"
-    output_file = "b3.4-stage3-input.h5"
+    input_file  = "stage2-matrix-assembly/b3.4-s32t64.h5"
+    output_file = "b3.4-stage3-input-fix.h5"
 
     with h5py.File(input_file, "r") as f:
 

@@ -83,24 +83,24 @@ class CorrelatorFactory(DistillationObjectsIO):
             # Scalar/pseudoscalar: just base_gamma @ D_block
             return contract("ij,ab->ijab", op.base_gamma, D_block)
 
-    # def phi_sink(self, op: BareOperator, t: int, mom: str) -> np.ndarray:
-    #     # Choose correct block based on derivative
-    #     if op.derivative == "nabla":
-    #         return self.contract_nabla(op, t, mom)
-    #     elif op.derivative in {"B", "D"}:
-    #         return self.contract_B_D(op, t, mom, add=(op.derivative == "B"))
-    #     else:
-    #         D = self.get_elemental_block(mom, "disp")
-    #         return self._apply_gamma(op, D[t])
+    def phi_sink(self, op: BareOperator, t: int, mom: str) -> np.ndarray:
+        # Choose correct block based on derivative
+        if op.derivative == "nabla":
+            return self.contract_nabla(op, t, mom)
+        elif op.derivative in {"B", "D"}:
+            return self.contract_B_D(op, t, mom, add=(op.derivative == "B"))
+        else:
+            D = self.get_elemental_block(mom, "disp")
+            return self._apply_gamma(op, D[t])
 
-    # def phi_source(self, op: BareOperator, mom: str) -> np.ndarray:
-    #     if op.derivative == "nabla":
-    #         return self.contract_nabla(op, 0, mom)
-    #     elif op.derivative in {"B", "D"}:
-    #         return self.contract_B_D(op, 0, mom, add=(op.derivative == "B"))
-    #     else:
-    #         D = self.get_elemental_block(mom, "disp")
-    #         return self._apply_gamma(op, D[0])
+    def phi_source(self, op: BareOperator, mom: str) -> np.ndarray:
+        if op.derivative == "nabla":
+            return self.contract_nabla(op, 0, mom)
+        elif op.derivative in {"B", "D"}:
+            return self.contract_B_D(op, 0, mom, add=(op.derivative == "B"))
+        else:
+            D = self.get_elemental_block(mom, "disp")
+            return self._apply_gamma(op, D[0])
 
 
     # ------------------------------------------------------------------
@@ -163,6 +163,78 @@ class CorrelatorFactory(DistillationObjectsIO):
         return total / len(op.orbit)
     
     @classmethod
+    def two_pt_meson(cls, proc,op_src,op_snk,tsrc_avg=False):
+
+        perams = proc.perambulators()
+        LT, ntsrc = proc.lt, proc.ntsrc
+
+        flavor_map = {
+            "light_light": (perams["light_fwd"], perams["light_bwd"]),
+            "light_charm": (perams["charm_fwd"], perams["light_bwd"]),
+            "charm_light": (perams["light_fwd"], perams["charm_bwd"]),
+            "charm_charm": (perams["charm_fwd"], perams["charm_bwd"]),
+        }
+
+        f1, f2 = proc.flavor_contents
+        m1_fwd, m1_bwd = flavor_map[f1]
+        m2_fwd, m2_bwd = flavor_map[f2]
+
+        phi0_1 = proc._phi_source_projected(op_src)
+
+        meson1_corr = np.zeros((ntsrc, LT), dtype=np.complex128)
+        meson2_corr = np.zeros((ntsrc, LT), dtype=np.complex128)
+
+        for tsrc_idx in range(ntsrc):
+            for t in range(LT):
+
+                phi_t_1 = proc._phi_sink_projected(op1_snk, t)
+                phi_t_2 = proc._phi_sink_projected(op2_snk, t)
+
+                # single meson contractions
+                c1 = contract("ijab,jkbc,klcd,lida",
+                            phi_t_1, m1_fwd[tsrc_idx, t],
+                            phi0_1, m1_bwd[tsrc_idx, t])
+
+                c2 = contract("ijab,jkbc,klcd,lida",
+                            phi_t_2, m2_fwd[tsrc_idx, t],
+                            phi0_2, m2_bwd[tsrc_idx, t])
+
+                meson1_corr[tsrc_idx, t] = c1
+                meson2_corr[tsrc_idx, t] = c2
+
+                direct[tsrc_idx, t] = c1 * c2
+
+                # crossing
+                m1x = contract("ijab,jkbc,klcd,lida",
+                            phi_t_1, m1_fwd[tsrc_idx, t],
+                            phi0_1, m2_bwd[tsrc_idx, t])
+
+                m2x = contract("ijab,jkbc,klcd,lida",
+                            phi_t_2, m2_fwd[tsrc_idx, t],
+                            phi0_2, m1_bwd[tsrc_idx, t])
+
+                crossing[tsrc_idx, t] = m1x * m2x
+
+        # periodic BC + P=0 → imaginary parts should be noise
+        # meson1_corr = meson1_corr.real
+        # meson2_corr = meson2_corr.real
+        direct = direct.real
+        crossing = crossing.real
+
+        c15 = direct - crossing
+        c6  = direct + crossing
+
+        return {
+            # "meson1": meson1_corr,
+            # "meson2": meson2_corr,
+            "direct": direct,
+            "crossing": crossing,
+            # "dimeson_15": c15,
+            # "dimeson_6": c6
+        }
+
+    
+    @classmethod
     def two_pt_dimeson(cls, proc, op1_src, op2_src, op1_snk, op2_snk,
                     tsrc_avg=False):
 
@@ -220,8 +292,8 @@ class CorrelatorFactory(DistillationObjectsIO):
                 crossing[tsrc_idx, t] = m1x * m2x
 
         # periodic BC + P=0 → imaginary parts should be noise
-        meson1_corr = meson1_corr.real
-        meson2_corr = meson2_corr.real
+        # meson1_corr = meson1_corr.real
+        # meson2_corr = meson2_corr.real
         direct = direct.real
         crossing = crossing.real
 
@@ -229,12 +301,12 @@ class CorrelatorFactory(DistillationObjectsIO):
         c6  = direct + crossing
 
         return {
-            "meson1": meson1_corr,
-            "meson2": meson2_corr,
+            # "meson1": meson1_corr,
+            # "meson2": meson2_corr,
             "direct": direct,
             "crossing": crossing,
-            "dimeson_15": c15,
-            "dimeson_6": c6
+            # "dimeson_15": c15,
+            # "dimeson_6": c6
         }
 
 
