@@ -3,7 +3,8 @@ import h5py
 import yaml
 from pathlib import Path
 
-from meson_correlator_factory import SingleMesonCorrelator
+from correlator_factory import CorrelatorFactory
+from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
 
@@ -15,7 +16,7 @@ def main():
     args = parser.parse_args()
 
     # -----------------------------------------------------
-    # Load YAML
+    # Load YAML (operator definitions only)
     # -----------------------------------------------------
     yaml_path = Path(args.yaml_file)
     with open(yaml_path) as f:
@@ -24,7 +25,6 @@ def main():
     ens = list(yaml_data.keys())[0]
     settings = yaml_data[ens]
 
-    params = settings["params"]
     operators = settings["operators"]
 
     # -----------------------------------------------------
@@ -33,17 +33,12 @@ def main():
     proc = CorrelatorFactory(
         ens=ens,
         cfg_id=args.cfg_id,
-        flavor_contents=params["flavor_contents"],
-        nvecs=params["nvecs"],
-        lt=params["lt"],
-        ntsrc=params["ntsrc"],
-        tsrc_step=params.get("tsrc_step", 8),
     )
 
-    proc.load_single_mesons()
+    proc.load(system_name="single")
 
     # -----------------------------------------------------
-    # Output file per configuration
+    # Output file
     # -----------------------------------------------------
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -56,16 +51,13 @@ def main():
 
     print(f"[INFO] Writing single-meson matrix to {outfile}")
 
-    # =====================================================
-    # Open configuration file
-    # =====================================================
     with h5py.File(outfile, "w") as f_cfg:
 
         f_cfg.attrs["ensemble"] = ens
         f_cfg.attrs["cfg_id"] = args.cfg_id
-        f_cfg.attrs["nvecs"] = params["nvecs"]
-        f_cfg.attrs["nt"] = params["lt"]
-        f_cfg.attrs["ntsrc"] = params["ntsrc"]
+        f_cfg.attrs["nvecs"] = proc.nvecs
+        f_cfg.attrs["nt"] = proc.lt
+        f_cfg.attrs["ntsrc"] = proc.ntsrc
 
         # =====================================================
         # Loop over irreps
@@ -81,17 +73,17 @@ def main():
             print(f"[INFO] {irrep}")
 
             # -------------------------------------------------
-            # Generate projected operators
+            # Generate operators
             # -------------------------------------------------
             factory = MesonFactory()
 
-            factory.generate_projected_zero_momentum(
-                meson_list=mesons,
+            ops = factory.generate(
+                meson=mesons,
                 insertions=insertions,
+                momentum=(0, 0, 0),
                 irrep=irrep
             )
 
-            ops = factory.operators
             n_ops = len(ops)
 
             print(f"[INFO] {irrep}: {n_ops} operators")
@@ -104,22 +96,21 @@ def main():
             grp_irrep.attrs["n_ops"] = n_ops
 
             # Store operator lookup
-            for short, full in ops:
-                grp_irrep.attrs[f"op_{short}"] = full
+            for op in ops:
+                grp_irrep.attrs[f"op_{op.short}"] = op.name
 
             # -------------------------------------------------
             # Hermitian-reduced matrix
             # -------------------------------------------------
-            for i, A in enumerate(ops):
+            for i, op_A in enumerate(ops):
                 for j in range(i, n_ops):
 
-                    short_A, op_A = A
-                    short_B, op_B = ops[j]
+                    op_B = ops[j]
 
-                    dataset_name = f"{short_A}__X__{short_B}"
+                    dataset_name = f"{op_A.short}__X__{op_B.short}"
 
                     try:
-                        C = CorrelatorFactory.two_pt_single(
+                        C = SingleMesonCorrelator.two_pt_corr(
                             proc=proc,
                             op_src=op_A,
                             op_snk=op_B
