@@ -85,7 +85,7 @@ def generate_batch_scripts(ini_file: str, chunk_size: int = 12):
 
 source /p/scratch/exflash/sc_venv_template/activate.sh
 
-SRC_PATH='/p/scratch/exflash/dpi-contractions/exotraction/src/two_pt_corr.py'
+SRC_PATH='/p/scratch/exflash/exotraction/src/single_meson_driver.py'
 YAML_FILE="{ini_path}"
 CORR_DIR="{corr_dir}"
 

@@ -92,7 +92,9 @@ def main():
             # -------------------------------------------------
             # Create irrep group
             # -------------------------------------------------
-            grp_irrep = f_cfg.create_group(irrep)
+            #grp_irrep = f_cfg.create_group(irrep)
+            grp_irrep = f_cfg.create_group(irrep_name)
+            grp_irrep.attrs["irrep"] = irrep
             grp_irrep.attrs["n_ops"] = n_ops
 
             # Store operator lookup
