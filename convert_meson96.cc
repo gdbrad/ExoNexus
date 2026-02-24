@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
       QDPIO::cout << "CHROMA: total number of input files processed = " << Chroma::getInputFileList().size() << std::endl;
     }
   
-// HERE BE DRAGONS
+// Begin h5 conversion work 
 
   std::cout << "creating obj"<< std::endl;
   BinaryStoreDB<SerialDBKey<InlineMesonMatElemColorVecSuperbEnv::KeyMesonElementalOperator_t>, SerialDBData<InlineMesonMatElemColorVecSuperbEnv::ValMesonElementalOperator_t>> qdp_db;
@@ -483,8 +483,10 @@ int main(int argc, char *argv[])
 	std::cout << "\tval size 0    "<< val.data().size[0] << std::endl;
 	std::cout << "\tval size 1    "<< val.data().size[1] << std::endl;
 
+  // iterate over the nvecs x nvecs square matrix 
 	for(int i = 0; i < num_vecs; i++){
 		for(int j = 0; j < num_vecs; j++){
+      // access pointer to the raw data eg. 2D matrix stored in row-major order
       mat(i, j) = val.data().data()[i*num_vecs+ j].real();
 
 			// mat(i, j) = val.data().get(SB::Coor<2UL>{i, j}).real();
