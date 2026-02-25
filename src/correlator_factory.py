@@ -1,19 +1,15 @@
 import numpy as np
 from elemental_factory import ElementalFactory
 
-
 class CorrelatorFactory(ElementalFactory):
     """
-    Thin wrapper around ElementalFactory.
-
-    Responsibilities:
+    Thin wrapper around ElementalFactory
         - Load contraction parameters
         - Set cfg_id
         - Load perambulators + elementals
     """
 
     def __init__(self, ens: str, cfg_id: int):
-
         # Get contraction parameters first
         tmp = ElementalFactory(ens=ens,
                                cfg_id=cfg_id,
@@ -34,16 +30,11 @@ class CorrelatorFactory(ElementalFactory):
 
         self.flavor_contents = params["flavor_contents"]
 
-    # -----------------------------------------------------
     # Public loader
-    # -----------------------------------------------------
-
     def load(self, system_name: str = "single"):
         self.load_for_system(system_name)
 
-    # -----------------------------------------------------
     # Perambulator passthrough
-    # -----------------------------------------------------
-
+    # dont think i need this 
     def perambulators(self):
         return super().perambulators()

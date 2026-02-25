@@ -1,24 +1,16 @@
-# single_meson_corr.py
-
 import numpy as np
 from opt_einsum import contract
-
 
 class SingleMesonCorrelator:
 
     @staticmethod
     def two_pt_corr(proc, op_src, op_snk):
-
         perams = proc.perambulators()
-
         LT = proc.lt
         ntsrc = proc.ntsrc
         tsrc_step = proc.tsrc_step
-
-        # ------------------------------
+        
         # Flavor selection
-        # ------------------------------
-
         flavor = op_src.meson
 
         if flavor == "light_light":
@@ -38,22 +30,15 @@ class SingleMesonCorrelator:
 
         corr = np.zeros((ntsrc, LT), dtype=np.complex128)
 
-        # ------------------------------
         # Main contraction
-        # ------------------------------
-
         for isrc in range(ntsrc):
-
             tsrc = isrc * tsrc_step
 
-            # Build source Φ at physical source time
+            # Build source phi at physical source time
             phi_src = proc.phi(op_src, tsrc)
-
             for t in range(LT):
-
                 tsnk = (tsrc + t) % LT
-
-                # Sink Φ at physical sink time
+                # Sink phi at physical sink time
                 phi_snk = proc.phi(op_snk, tsnk)
 
                 # Perambulators already indexed by (isrc, t)
