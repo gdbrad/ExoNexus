@@ -27,19 +27,11 @@ def main():
 
     operators = settings["operators"]
 
-    # -----------------------------------------------------
-    # Initialize correlator factory
-    # -----------------------------------------------------
     proc = CorrelatorFactory(
         ens=ens,
         cfg_id=args.cfg_id,
     )
-
     proc.load(system_name="single")
-
-    # -----------------------------------------------------
-    # Output file
-    # -----------------------------------------------------
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -59,11 +51,7 @@ def main():
         f_cfg.attrs["nt"] = proc.lt
         f_cfg.attrs["ntsrc"] = proc.ntsrc
 
-        # =====================================================
-        # Loop over irreps
-        # =====================================================
         for irrep_name in operators:
-
             irrep_settings = operators[irrep_name]
 
             irrep = irrep_settings["irrep"]
@@ -71,10 +59,6 @@ def main():
             insertions = irrep_settings["insertions"]
 
             print(f"[INFO] {irrep}")
-
-            # -------------------------------------------------
-            # Generate operators
-            # -------------------------------------------------
             factory = MesonFactory()
 
             ops = factory.generate(

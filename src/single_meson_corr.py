@@ -19,7 +19,7 @@ class SingleMesonCorrelator:
         # Flavor selection
         # ------------------------------
 
-        flavor = proc.flavor_contents[0]
+        flavor = op_src.meson
 
         if flavor == "light_light":
             fwd = perams["light_fwd"]
