@@ -1,7 +1,5 @@
 """
-meson_factory.py
-
-Single-meson operator construction.
+Single-meson operator construction
 
 - No cubic orbit projection
 - Fixed momentum
@@ -15,7 +13,6 @@ from dataclasses import dataclass
 from typing import Tuple, List
 from gamma import gamma
 import numpy as np
-
 
 # ---------------------------------------------------------
 # Gamma insertion dictionary

@@ -86,13 +86,10 @@ def main():
                             op_src=op_A,
                             op_snk=op_B
                         )
-
                         grp_irrep.create_dataset(dataset_name,data=C)
-
                     except Exception as e:
                         print(f"[ERROR] {dataset_name}")
                         print(e)
-
     print(f"[DONE] cfg {args.cfg_id:04d} complete")
 
 if __name__ == "__main__":
