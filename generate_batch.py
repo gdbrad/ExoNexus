@@ -1,127 +1,123 @@
-#!/usr/bin/env python3
 import yaml
 import os
 from datetime import datetime
 import argparse
+from pathlib import Path
 
-def generate_batch_script(ini_file: str):
+def chunk_list(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+def generate_batch_scripts(ini_file: str, chunk_size: int = 12):
+    ini_path = Path(ini_file).resolve()
+    ini_dir = ini_path.parent
+
     with open(ini_file, 'r') as f:
         full_config = yaml.safe_load(f)
+
     ens = list(full_config.keys())[0]
     config = full_config[ens]
-
-    # # Handle the case where the real config is under an ensemble name key
-    # if len(full_config) == 1 and isinstance(list(full_config.values())[0], dict):
-    #     config = list(full_config.values())[0]   # extract the inner dict
-    # else:
-    #     config = full_config
-
     slurm = config['slurm']
     cfgs = config['configs']
-    params = config.get('parameters', {})
 
-    # ------------------------------------------------------------------
-    # Build the list of cfg_ids
-    # ------------------------------------------------------------------
+    # Build full cfg list
     if 'range' in cfgs and cfgs['range'] is not None:
         r = cfgs['range']
-        start = r['start']
-        end = r['end']
-        step = r.get('step', 1)
-        cfg_ids = list(range(start, end + step, step))
+        cfg_ids = list(range(r['start'], r['end'] + r.get('step', 1), r.get('step', 1)))
     elif 'list' in cfgs and cfgs['list'] is not None:
         cfg_ids = cfgs['list']
     else:
-        raise ValueError("configs must contain either 'range' or 'list'")
+        raise ValueError("Need range or list")
 
     exclude = set(cfgs.get('exclude', []))
+    print(exclude)
     cfg_ids = [c for c in cfg_ids if c not in exclude]
 
-    if not cfg_ids:
-        raise ValueError("No configurations left after exclusion")
-
-    # ------------------------------------------------------------------
-    # Output directories and script filename
-    # ------------------------------------------------------------------
+    # Output directories
     now = datetime.now()
-    #log_dir = slurm['log_dir']
-    #log_dir = os.path.expanduser(log_dir)
-    output_dir = os.path.expanduser(slurm.get('output_dir'))  # fallback if needed
+    base_out = Path(slurm.get('output_dir', str(ini_dir))).expanduser()
+    run_dir = base_out / f"run-{now.strftime('%Y%m%d')}"
+    log_dir = run_dir / "logs"
+    corr_dir = run_dir / "correlators"          # ← NEW: where final .h5 files go
 
-    run_dir = f"{output_dir}/run_{ens}_{now.strftime('%Y%m%d')}"
-    log_dir = f"{run_dir}/logs"
-    os.makedirs(run_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(exist_ok=True)
+    corr_dir.mkdir(exist_ok=True)
 
-    script_path = os.path.join(run_dir, f"contract_{ens}.sh")
+    # Fix time format
+    time_val = slurm['time']
+    if isinstance(time_val, (int, str)) and ':' not in str(time_val):
+        time_val = f"{time_val}:00:00"
 
-    # Choose execution style: False → bash background loop (fills one node)
-    # True → SLURM array job (one task per cfg)
-    use_array = False
+    # Pattern of final correlator file (adjust if your filename differs slightly)
+    done_pattern = f"{ens}_Dpi_cfg{{cfg}}_matrix_n64_ntsrc8_*.h5"
 
-    # ------------------------------------------------------------------
-    # Write the SLURM script
-    # ------------------------------------------------------------------
-    with open(script_path, 'w') as sh:
-        array_line = f"#SBATCH --array=0-{len(cfg_ids)-1}%32" if use_array else ""
+    # Skip configs that already have their final correlator in THIS run dir
+    remaining_cfgs = []
+    for cfg in cfg_ids:
+        if any((corr_dir / done_pattern.format(cfg=cfg)).glob("*")):
+            print(f"Skipping cfg {cfg:4d} — correlator already exists in {corr_dir}")
+        else:
+            remaining_cfgs.append(cfg)
 
-        sh.write(f"""#!/bin/bash
-#SBATCH --job-name={slurm['job_name']}
+    if not remaining_cfgs:
+        print("All configurations already completed!")
+        return
+
+    print(f"{len(remaining_cfgs)} / {len(cfg_ids)} configurations still need to be done")
+    chunks = list(chunk_list(remaining_cfgs, chunk_size))
+
+    for idx, chunk in enumerate(chunks, 1):
+        script_path = run_dir / f"contract_{ens}_part{idx:02d}.sh"
+
+        with open(script_path, 'w') as f:
+            f.write(f"""#!/bin/bash
+#SBATCH --job-name={slurm['job_name']}_p{idx:02d}
 #SBATCH --account={slurm['account']}
 #SBATCH --nodes={slurm['nodes']}
 #SBATCH --cpus-per-task={slurm['cpus_per_task']}
-#SBATCH --time={slurm['time']}
+#SBATCH --time={time_val}
 #SBATCH --partition={slurm['partition']}
-#SBATCH --output={slurm['log_dir']}/%j{'_%a' if use_array else ''}.out
-#SBATCH --error={slurm['log_dir']}/%j{'_%a' if use_array else ''}.err
-{array_line}
-YAML_FILE="$1"   # first argument after sbatch
+#SBATCH --ntasks-per-node={slurm.get('ntasks_per_node', 1)}
+#SBATCH --output={log_dir}/%j.out
+#SBATCH --error={log_dir}/%j.err
 
-# Activate your environment
-source /p/scratch/exflash/sc_venv_template/activate.sh   # adjust if needed
+source /p/scratch/exflash/sc_venv_template/activate.sh
 
 SRC_PATH='/p/scratch/exflash/dpi-contractions/exotraction/src/two_pt_corr.py'
+YAML_FILE="{ini_path}"
+CORR_DIR="{corr_dir}"
 
-# List of configurations generated by the Python script
-CFG_IDS=({' '.join(map(str, cfg_ids))})
+echo "=== Job $SLURM_JOB_ID | Part {idx}/{len(chunks)} | $(date) ==="
+echo "Configs: {' '.join(map(str, chunk))}"
 
-echo "Job $SLURM_JOB_ID – YAML file: $YAML_FILE"
-echo "Processing {len(cfg_ids)} configurations: ${{CFG_IDS[@]}}"
-
-""")
-
-        if use_array:
-            sh.write(f"""
-IDX=$SLURM_ARRAY_TASK_ID
-CFG_ID=${{CFG_IDS[$IDX]}}
-
-echo "Array task $IDX → cfg_id $CFG_ID"
-srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID
-""")
-        else:
-            sh.write(f"""
-# Launch all configurations in parallel (background) on this node
-for CFG_ID in "${{CFG_IDS[@]}}"; do
-    echo "Launching cfg_id $CFG_ID"
-    srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID --outdir {run_dir} \\
+for CFG_ID in {' '.join(map(str, chunk))}; do
+    OUTFILE="{corr_dir}/{ens}_Dpi_cfg${{CFG_ID}}_matrix_n64_ntsrc8_$(date +%Y-%m-%d).h5"
+    if [[ -f "$OUTFILE" ]]; then
+        echo "Skipping cfg $CFG_ID — output already exists"
+        continue
+    fi
+    echo "Launching cfg $CFG_ID → $OUTFILE"
+    srun --exact --cpus-per-task=$SLURM_CPUS_PER_TASK \\
+         python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID --outdir $CORR_DIR\\
          > {log_dir}/cfg_${{CFG_ID}}.log 2>&1 &
 done
 
 wait
-echo "All configurations finished."
+echo "Part {idx} finished — correlators in {corr_dir}"
 """)
 
-    os.chmod(script_path, 0o755)
-    print(f"Generated batch script: {script_path}")
-    print(f"   {len(cfg_ids)} configurations")
-    print(f"   Submit example:")
-    print(f"       sbatch {script_path} b3.4-s24t64.ini.yml")
-    print(f"   or (if you prefer explicit flag):")
-    print(f"       sbatch {script_path} --yaml_file b3.4-s24t64.ini.yml")
+        script_path.chmod(0o755)
+        print(f"Generated {script_path.name} → {len(chunk)} configs")
+
+    print(f"\nDone. Launch with:")
+    print(f"   sbatch {run_dir}/contract_{ens}_part*.sh")
+    print(f"   (or: for f in {run_dir}/*.sh; do sbatch \"$f\"; done)")
+    print(f"\nFinal correlators will be in:\n   {corr_dir}\n")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Generate clean SLURM batch script")
-    parser.add_argument('--ini', type=str, required=True,
-                       help="Your generator config YAML (the one with ranges, slurm params, etc.)")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ini', type=str, required=True)
+    parser.add_argument('--chunk', type=int, default=12, help="Configs per job")
     args = parser.parse_args()
-    generate_batch_script(args.ini)
+    generate_batch_scripts(args.ini, args.chunk)

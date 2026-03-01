@@ -1,157 +1,180 @@
+# dimeson_factory.py
+"""
+Refactored to:
+ - Remove redundant cubic-rotated momentum copies
+ - Build ONE operator per |p|^2 shell
+ - Store full cubic orbit inside operator
+ - Prepare for orbit-projected contraction
+
+Zero total momentum only (P=0 case).
+"""
+
 from dataclasses import dataclass
+from typing import Tuple, List
+from itertools import permutations, product
 import numpy as np
-from itertools import product
-import re
-from typing import List, Dict, Union, Tuple, Any
+from gamma import gamma
 
 I = np.identity(4)
-from gamma import gamma,gamma_i
-
-"""see https://arxiv.org/pdf/1607.07093 table 5
-
-"""
 
 gamma_insertion_dict = {
     'a0': I,
     'pi': gamma[5],
-    'pi2': gamma[4]@gamma[5],
+    'pi2': gamma[4] @ gamma[5],
     'b0': gamma[4],
-    'rho': I, #gi
-    'rho2': gamma[4],#gi
-    'a1': gamma[5],#gi
-    'b1': gamma[4]@gamma[5]#gi
-
+    'rho': I,
+    'rho2': gamma[4],
+    'a1': gamma[5],
+    'b1': gamma[4] @ gamma[5],
 }
 
-derivative_dict = {
-    'none': None,
-    'nabla': 'nabla',
-    'B': 'B',
-    'D': 'D'
-}
 
-flavor_dict = {'D': 'charm_light', 'pion': 'light_light'}
+# ---------------------------------------------------------
+# Helper: Build full cubic orbit of a momentum vector
+# ---------------------------------------------------------
+def cubic_orbit(p: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
+    """
+    Generate all cubic rotations and reflections of p.
+    Used to build momentum shells at P=0.
+    """
+    px, py, pz = p
+    orbit = set()
 
+    for perm in set(permutations([px, py, pz])):
+        for signs in product([-1, 1], repeat=3):
+            orbit.add(tuple(s * x for s, x in zip(signs, perm)))
+
+    return list(orbit)
+
+
+# ---------------------------------------------------------
+# Bare operator
+# ---------------------------------------------------------
 @dataclass
 class BareOperator:
+    """
+    Modified:
+    - mom can be None (projected operator)
+    - orbit stores cubic orbit momenta
+    """
+    meson: str
+    mom: Tuple[int, int, int] | None
+    ins: str
+    irrep: str
     name: str
-    F: str
-    flavor: str
-    twoI: int
-    mom: str
-    gamma: Any
-    gamma_i: bool
-    deriv: Union[str, None]
+    short: str = ""
+    orbit: List[Tuple[int, int, int]] | None = None
 
-def mommy(s: str) -> str:
-    nums = re.findall(r'-?\d', s)
-    return "mom_" + "_".join(nums)
+    @property
+    def base_gamma(self):
+        gname, _ = self.ins.split('_')
+        return gamma_insertion_dict[gname]
 
-def parse_op(op: str) -> BareOperator:
-    keys = op.split('_')
-    gamma_mat = gamma_insertion_dict[keys[2]]
-    # if gamma_mat in ['rho','rho2','a1','b1']:
-    #     gamma_i= True
-    # else:
-    #     gamma_i = False
-    deriv = derivative_dict.get(keys[3], keys[3]) if keys[3] != 'none' else None
-    return BareOperator(
-        name=op,
-        F=keys[-1],
-        flavor=flavor_dict[keys[0]],
-        twoI=0,
-        mom=mommy(keys[1]),
-        gamma=gamma_mat,
-        gamma_i=gamma_i,
-        deriv=deriv
-    )
+    @property
+    def gamma_i(self) -> bool:
+        gname, _ = self.ins.split('_')
+        return gname in {'rho', 'rho2', 'a1', 'b1'}
 
-#t1p_dict
-
-a1p_dict = {
-    'pi_none': '0mp',
-    'pi2_none': '0mp',
-    'rho_nabla': '0pp',
-    #'rho2_nabla': '0pp',
-    #'a1_B': '0pm',
-    #'b1_B': '0pp',
-    #'b1_nabla': '0mp'
+    @property
+    def derivative(self):
+        _, d = self.ins.split('_')
+        return d if d != 'none' else None
     
-}
+# ---------------------------------------------------------
+# DiMesonFactory
+# ---------------------------------------------------------
+class DiMesonFactory:
+    """
+    Refactored:
+      - Generates ONE operator per |p|^2 shell
+      - Stores full cubic orbit internally
+      - Eliminates redundant momentum combinations
+    """
 
-possible_insertions = list(a1p_dict.keys())
+    def __init__(self):
+        self.pairs = []
 
-def mom_to_str(m: Tuple[int, int, int]) -> str:
-    return ''.join(str(c) if c >= 0 else f"-{abs(c)}" for c in m)
+    @staticmethod
+    def mom_to_str(mom):
+        px, py, pz = mom
+        return f"mom_{px}_{py}_{pz}"
 
-#moms_list = list(product([-1, 0, 1], repeat=3))
-moms_list = [
-    [(0, 0, 0),(0, 0, 0)],
-    [(0, 0, 1),(0, 0, -1)],
-    [(0, 1, 0),(0, -1, 0)],
-    [(1, 0, 0),(-1, 0, 0)]
-]
 
-#print(moms_list)
-#moms_list = 
+    def generate_projected_zero_momentum(
+        self,
+        meson1_list,
+        meson2_list,
+        insertions1,
+        insertions2,
+        momentum_list,
+        irrep="a1u"
+    ):
+        """
+        Build ONE operator per |p|^2 shell.
+        Assumes p2 = -p1 (P=0).
+        """
 
-@dataclass
-class DiMesonOperator:
-    op1: BareOperator
-    op2: BareOperator
-    name: str
-    F: str
+        m1_list = [meson1_list] if isinstance(meson1_list, str) else meson1_list
+        m2_list = [meson2_list] if isinstance(meson2_list, str) else meson2_list
 
-    @classmethod
-    def generate_operators(
-        cls,
-        insertions_D: List[str],
-        insertions_pi: List[str],
-        momentum_pairs: List[Tuple[Tuple[int,int,int], Tuple[int,int,int]]]) -> Dict[str, 'DiMesonOperator']:
-            """
-            Generate all possible DiMesonOperator combinations for D-pi in a1p irrep.
-            Returns a dict keyed by operator name.
-            """
-            operators = {}
-            idx = 0
-            #di_mesons: List['DiMesonOperator'] = []
-            for pair in momentum_pairs:
-                mom1, mom2 = pair
-                mom1_str = mom_to_str(mom1)
-                mom2_str = mom_to_str(mom2)
-                for ins1 in insertions_D:
-                    g1, d1 = ins1.split('_')
-                    op1_str = f"D_{mom1_str}_{g1}_{d1}_a1p"
-                    op1 = parse_op(op1_str)
-                    for ins2 in insertions_pi:
-                        g2, d2 = ins2.split('_')
-                        op2_str = f"pion_{mom2_str}_{g2}_{d2}_a1p"
-                        op2 = parse_op(op2_str)
+        # -------------------------------------------------
+        # Step 1: Build unique |p|^2 shells
+        # -------------------------------------------------
+        shells = {}
 
-                        dimeson_op_name = f"{op1.name}X{op2.name}"
-                        op = cls(op1=op1, op2=op2, name=dimeson_op_name, F='a1p')
-                        operators[dimeson_op_name] = op
-                        idx += 1
-                        #di_mesons.append(dim)
-                # Register ordered list for integer indexing
-            ordered = list(operators.values())
-            cls._ordered = ordered
-            cls._name_to_idx = {op.name: i for i, op in enumerate(ordered)}
-            cls._idx_to_name = {i: op.name for i, op in enumerate(ordered)}
+        for p in momentum_list:
+            p = tuple(p)
+            p2 = sum(x * x for x in p)
 
-            print(f"[DiMeson] Generated {len(ordered)} operators:")
-            for i, op in enumerate(ordered):
-                print(f"  op {i+1:2d}: {op.name}")
-            return operators
-    
-    @classmethod
-    def get_ordered(cls):
-        return cls._ordered
+            if p2 == 0:
+                continue
 
-    @classmethod
-    def name_to_index(cls, name: str) -> int:
-        return cls._name_to_idx[name]
+            if p2 not in shells:
+                shells[p2] = cubic_orbit(p)
 
-    @classmethod
-    def index_to_name(cls, idx: int) -> str:
-        return cls._idx_to_name[idx]
+        # -------------------------------------------------
+        # Step 2: Create projected operators
+        # -------------------------------------------------
+        self.pairs = []
+
+        for p2_shell, orbit in shells.items():
+
+            for m1 in m1_list:
+                for ins1 in insertions1:
+
+                    full1 = f"{m1}_shell{p2_shell}_{ins1}_{irrep}"
+                    short1 = f"{m1}_p{p2_shell}_{ins1}"
+
+                    op1 = BareOperator(
+                        meson=m1,
+                        mom=None,
+                        orbit=orbit,
+                        ins=ins1,
+                        irrep=irrep,
+                        name=full1,
+                        short=short1
+                    )
+
+                    for m2 in m2_list:
+                        for ins2 in insertions2:
+
+                            full2 = f"{m2}_shell{p2_shell}_{ins2}_{irrep}"
+                            short2 = f"{m2}_p{p2_shell}_{ins2}"
+
+                            op2 = BareOperator(
+                                meson=m2,
+                                mom=None,
+                                orbit=[tuple(-x for x in p) for p in orbit],
+                                ins=ins2,
+                                irrep=irrep,
+                                name=full2,
+                                short=short2
+                            )
+
+                            pair_short = f"{short1}x{short2}"
+                            pair_full = f"{full1}X{full2}"
+
+                            self.pairs.append((op1, op2, pair_short, pair_full))
+
+        print(f"[DiMesonFactory] Generated {len(self.pairs)} projected operators")
+        return self.pairs
