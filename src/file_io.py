@@ -62,7 +62,7 @@ class DistillationObjectsIO:
 
         self.filename_templates = cfg["filenames"]
         # --------------------------------------------------
-        self.output_dir = cfg["output_dir"]
+        self.output_dir = cfg["slurm"]["output_dir"]
         self.log_dir = cfg["log_dir"]
         # --------------------------------------------------
         r = cfg["configs"]["range"]
