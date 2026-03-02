@@ -124,7 +124,7 @@ class DistillationObjectsIO:
             return self._elemental_cache[key]
 
         # this assumes dataset name = f"{mom}/{disp}"
-        block = load_elemental(
+        block,_ = load_elemental(
             self._file_path("meson"),
             mom=mom,
             disp=disp,
