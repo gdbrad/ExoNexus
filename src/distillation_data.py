@@ -11,7 +11,7 @@ class DistillationData:
 
         # IO layer
         self.io = DistillationObjectsIO(ens=ens, collection=collection)
-        self.io.load_config()
+        self.io.load_ens()
 
         # Config parameters
         self.cfg_id = cfg_id
