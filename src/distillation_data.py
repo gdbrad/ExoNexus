@@ -44,7 +44,7 @@ class DistillationData:
             self.io.load_peram(flav)
 
             # load meson elementals
-        self.io.load_meson()
+        self.io.load_full_meson()
 
     # --------------------------------------------------
     # Interfaces used by correlators
