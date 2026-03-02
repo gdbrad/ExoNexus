@@ -124,8 +124,6 @@ class DistillationObjectsIO:
         # this assumes dataset name = f"{mom}/{disp}"
         block = load_elemental(
             self._file_path("meson"),
-            max_t=self.lt,
-            n_vecs=self.nvecs,
             mom=mom,
             disp=disp,
         )
