@@ -141,7 +141,7 @@ class DistillationObjectsIO:
         flav_path = self._file_path(flav)
         print(f"[IO] Loading {flav} perambulator: {flav_path} for cfg {self.cfg_id}")
         
-        peram = load_peram(
+        peram,metadata = load_peram(
             flav_path
             # max_t=self.lt,
             # n_vecs=self.nvecs,
