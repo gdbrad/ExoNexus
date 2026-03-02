@@ -25,7 +25,7 @@ def main():
     operators = settings["operators"]
 
     # init loader
-    proc = DistillationData(ens=ens,cfg_id=args.cfg_id)
+    proc = DistillationData(ens=ens,yaml_file=args.yaml_file,cfg_id=args.cfg_id)
     proc.load_single_meson()
 
     # set paths
