@@ -1,12 +1,10 @@
+import gamma 
 import numpy as np
 from opt_einsum import contract
-import gamma
-from file_io import DistillationObjectsIO
 
-
-class ElementalFactory(DistillationObjectsIO):
+class PhiFactory:
     """
-    Builds the elementals Φ for:
+    Builds the elementals \phi for:
         - local operators
         - gamma_i vector operators
         - nabla derivative operators
@@ -14,18 +12,14 @@ class ElementalFactory(DistillationObjectsIO):
         - cubic orbit projected operators
     """
 
-    def __init__(self, ens, cfg_id, nvecs, lt, ntsrc,
-                 tsrc_step=8, collection=None):
-
-        super().__init__(ens=ens, collection=collection)
-
-        self.cfg_id = cfg_id
-        self.nvecs = nvecs
-        self.lt = lt
-        self.ntsrc = ntsrc
-        self.tsrc_step = tsrc_step
-
-    # ==========================================================
+    def __init__(self, data):
+        """
+        data must provide:
+            - get_elemental_block()
+        """
+        self.data = data
+    
+     # ==========================================================
     # Base gamma application (local / scalar / vector)
     # ==========================================================
 
@@ -58,9 +52,9 @@ class ElementalFactory(DistillationObjectsIO):
                    gamma.gamma[2],
                    gamma.gamma[3]]
 
-        D1 = self.get_elemental_block(mom, "disp_1")
-        D2 = self.get_elemental_block(mom, "disp_2")
-        D3 = self.get_elemental_block(mom, "disp_3")
+        D1 = self.data.get_elemental_block(mom, "disp_1")
+        D2 = self.data.get_elemental_block(mom, "disp_2")
+        D3 = self.data.get_elemental_block(mom, "disp_3")
 
         return sum(
             contract("ij,ab->ijab",
@@ -83,12 +77,12 @@ class ElementalFactory(DistillationObjectsIO):
         coeff = 1 if add else -1
 
         D = {
-            "12": self.get_elemental_block(mom, "disp_1_2"),
-            "21": self.get_elemental_block(mom, "disp_2_1"),
-            "13": self.get_elemental_block(mom, "disp_1_3"),
-            "31": self.get_elemental_block(mom, "disp_3_1"),
-            "23": self.get_elemental_block(mom, "disp_2_3"),
-            "32": self.get_elemental_block(mom, "disp_3_2"),
+            "12": self.data.get_elemental_block(mom, "disp_1_2"),
+            "21": self.data.get_elemental_block(mom, "disp_2_1"),
+            "13": self.data.get_elemental_block(mom, "disp_1_3"),
+            "31": self.data.get_elemental_block(mom, "disp_3_1"),
+            "23": self.data.get_elemental_block(mom, "disp_2_3"),
+            "32": self.data.get_elemental_block(mom, "disp_3_2"),
         }
 
         phi = (
@@ -117,7 +111,7 @@ class ElementalFactory(DistillationObjectsIO):
             return self._phi_BD(op, t, mom)
 
         else:
-            D = self.get_elemental_block(mom, "disp")
+            D = self.data.get_elemental_block(mom, "disp")
             return self._apply_gamma(op, D[t])
 
     # ==========================================================
@@ -126,7 +120,7 @@ class ElementalFactory(DistillationObjectsIO):
 
     def phi(self, op, t):
         """
-        Unified Φ builder.
+        Unified phi builder eg. elemental with structure
 
         Handles:
             - local operators

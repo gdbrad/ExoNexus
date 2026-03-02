@@ -3,7 +3,9 @@ import h5py
 import yaml
 from pathlib import Path
 
-from correlator_factory import CorrelatorFactory
+from distillation_data import DistillationData
+
+#from correlator_factory import CorrelatorFactory
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
@@ -23,8 +25,8 @@ def main():
     operators = settings["operators"]
 
     # init loader
-    proc = CorrelatorFactory(ens=ens,cfg_id=args.cfg_id)
-    proc.load(system_name="single")
+    proc = DistillationData(ens=ens,cfg_id=args.cfg_id)
+    proc.load_single_meson()
 
     # set paths
     outdir = Path(args.outdir)

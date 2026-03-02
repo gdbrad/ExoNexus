@@ -13,20 +13,21 @@ class SingleMesonCorrelator:
         # Flavor selection
         flavor = op_src.meson
 
-        if flavor == "light_light":
-            fwd = perams["light_fwd"]
-            bwd = perams["light_bwd"]
+        flavor_map = {
+            "light_light": ("light_fwd", "light_bwd"),
+            "charm_charm": ("charm_fwd", "charm_bwd"),
+            "charm_light": ("light_fwd", "charm_bwd"),
+            "light_charm": ("light_fwd", "charm_bwd"),
+        }
 
-        elif flavor == "charm_charm":
-            fwd = perams["charm_fwd"]
-            bwd = perams["charm_bwd"]
-
-        elif flavor in ("charm_light", "light_charm"):
-            fwd = perams["light_fwd"]
-            bwd = perams["charm_bwd"]
-
-        else:
+        try:
+            fwd_key, bwd_key = flavor_map[flavor]
+        except KeyError:
             raise NotImplementedError(f"Unsupported flavor: {flavor}")
+
+        fwd = perams[fwd_key]
+        bwd = perams[bwd_key]
+
 
         corr = np.zeros((ntsrc, LT), dtype=np.complex128)
 
