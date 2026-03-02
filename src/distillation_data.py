@@ -31,11 +31,19 @@ class DistillationData:
 
     def load_single_meson(self):
 
-        # load perambulators
-        for flav in self.flavor_contents:
+        required = set()
+        for pair in self.flavor_contents:
+            f1, f2 = pair.split("_")
+            required.add(f1)
+            required.add(f2)
+        # ----------------------------------------
+        # Load perambulators for each quark flavor
+        # ----------------------------------------
+
+        for flav in required:
             self.io.load_peram(flav)
 
-        # load meson elementals
+            # load meson elementals
         self.io.load_meson()
 
     # --------------------------------------------------
