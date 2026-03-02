@@ -103,13 +103,13 @@ class DistillationObjectsIO:
             raise FileNotFoundError(f"Meson file missing: {path}")
 
         # assumes load_elemental can return *all* data when mom/disp=None
-        self.meson_full = load_elemental(
+        _data,_ = load_elemental(
             path, 
             # max_t=self.lt, 
             # n_vecs=self.nvecs,
             mom=None,
             disp=None)
-        
+        self.meson_full = _data
         if self.meson_full is None:
             raise ValueError("failed to load full meson file")
         
