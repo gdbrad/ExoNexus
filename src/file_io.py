@@ -142,11 +142,11 @@ class DistillationObjectsIO:
         print(f"[IO] Loading {flav} perambulator: {flav_path} for cfg {self.cfg_id}")
         
         peram = load_peram(
-            flav_path,
-            max_t=self.lt,
-            n_vecs=self.nvecs,
-            num_tsrcs=self.ntsrc,           
-            tsrc_step=self.tsrc_step  
+            flav_path
+            # max_t=self.lt,
+            # n_vecs=self.nvecs,
+            # num_tsrcs=self.ntsrc,           
+            # tsrc_step=self.tsrc_step  
         )
         if peram is None:
             raise ValueError(f"Failed to load {flav} perambulator")
