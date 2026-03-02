@@ -7,10 +7,9 @@ from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 
 class DistillationData:
 
-    def __init__(self, ens, cfg_id, collection=None):
-
+    def __init__(self, ens,yaml_file, cfg_id, collection=None):
         # IO layer
-        self.io = DistillationObjectsIO(ens=ens, collection=collection)
+        self.io = DistillationObjectsIO(ens=ens,yaml_file=yaml_file, collection=collection)
         self.io.load_ens()
 
         # Config parameters

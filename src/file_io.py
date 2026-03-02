@@ -8,9 +8,11 @@ from ingest_data import load_elemental, load_peram, reverse_perambulator_time
 
 class DistillationObjectsIO:
     def __init__(self, 
-                 ens: str, 
+                 ens: str,
+                 yaml_file: str, 
                  collection: str | None = None) -> None:
         self.ens = ens
+        self.yaml_file = yaml_file
         self.collection = (
             collection
             or str(datetime.datetime.now())
@@ -43,7 +45,7 @@ class DistillationObjectsIO:
     def load_ens(self) -> Dict[str, Any]:
         if not self.ens:
             raise ValueError("Ensemble name required")
-        yaml_path = f"{self.ens}.ini.yml"
+        yaml_path = self.yaml_file
         if not os.path.isfile(yaml_path):
             raise FileNotFoundError(f"YAML config missing: {yaml_path}")
         with open(yaml_path, "r") as f:
