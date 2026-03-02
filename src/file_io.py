@@ -105,8 +105,8 @@ class DistillationObjectsIO:
         # assumes load_elemental can return *all* data when mom/disp=None
         self.meson_full = load_elemental(
             path, 
-            max_t=self.lt, 
-            n_vecs=self.nvecs,
+            # max_t=self.lt, 
+            # n_vecs=self.nvecs,
             mom=None,
             disp=None)
         
