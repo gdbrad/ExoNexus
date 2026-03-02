@@ -61,8 +61,8 @@ class DistillationData:
         Select only charm perambulator slices whose physical time matches the light ones.
         This is the ONLY safe way when light and charm have different tsrc spacing.
         """
-        light_fwd = self.peram_light   # shape (8, 64, ...)
-        charm_fwd = self.peram_charm   # shape (16, 64, ...)
+        light_fwd = self.io.perams["light"]
+        charm_fwd = self.io.perams["charm"]
         
         # These are the actual physical times present in each file
         # Chroma names: t_source_0, t_source_4, t_source_8, ...
