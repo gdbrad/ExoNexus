@@ -1,0 +1,11 @@
+contract-log/
+*.log
+h5-out/
+*.h5
+*.pyc
+*.pkl
+__pycache__
+exo/
+*.err
+*.log
+venv/
