@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
       QDPIO::cout << "CHROMA: total number of input files processed = " << Chroma::getInputFileList().size() << std::endl;
     }
   
-// HERE BE DRAGONS
+// h5 conversion work starts here 
 
   std::cout << "creating obj"<< std::endl;
   BinaryStoreDB< SerialDBKey<KeyPropElementalOperator_t>, SerialDBData<ValPropElementalOperator_t> > qdp_db;
