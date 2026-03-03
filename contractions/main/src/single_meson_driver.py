@@ -3,13 +3,14 @@ import h5py
 import yaml
 from pathlib import Path
 
+from core.exonexus.ens_loader import load_ens
 from correlator_factory import CorrelatorFactory
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--yaml_file", required=True)
+    parser.add_argument("--ens_file", required=True)
     parser.add_argument("--cfg_id", type=int, required=True)
     parser.add_argument("--outdir", required=True)
     args = parser.parse_args()
@@ -40,7 +41,7 @@ def main():
     with h5py.File(outfile, "w") as f_cfg:
         f_cfg.attrs["ensemble"] = ens
         f_cfg.attrs["cfg_id"] = args.cfg_id
-        f_cfg.attrs["nvecs"] = proc.nvecs
+        f_cfg.attrs["nvecs"] = proc.nvecsPP
         f_cfg.attrs["nt"] = proc.lt
         f_cfg.attrs["ntsrc"] = proc.ntsrc
 

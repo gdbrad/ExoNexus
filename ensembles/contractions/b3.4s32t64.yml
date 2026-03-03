@@ -1,10 +1,33 @@
 extends: ../base/b3.4_s32t64.yaml
 
+# ======================================================
+# ENSEMBLE METADATA
+# ======================================================
+
+ensemble:
+  short: b3.4_s32t64
+  description: 3.4 fm, 32^3x64 lattice
+
+# ======================================================
+# DATA PATHS (Cluster Only)
+# ======================================================
+
 paths:
   tape_path: /p/data1/slnpp/bradley1
   base_path: /p/project1/exflash/gdb-data/b3.4-s32t64
-  output_dir: /p/project1/exflash/gdb-data/b3.4-s32t64
-  log_dir: /p/project1/exflash/gdb-data/b3.4-s32t64
+
+# ======================================================
+# EXECUTION SETTINGS (used by batch generator)
+# ======================================================
+
+execution:
+  driver_script: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
+  venv_activate: /p/project1/exoenv/activate.sh
+  correlator_output: /p/project1/exflash/gdb-data/b3.4-s32t64/correlators
+
+# ======================================================
+# SLURM SETTINGS
+# ======================================================
 
 slurm:
   job_name: mesonspec-b3.4-s32t64
@@ -13,10 +36,11 @@ slurm:
   ntasks_per_node: 1
   cpus_per_task: 3
   partition: dc-cpu
-  time_minutes: 20
+  time: "00:20:00"
 
-system:
-  - single_meson
+# ======================================================
+# GAUGE CONFIGURATIONS
+# ======================================================
 
 configs:
   range:
@@ -25,168 +49,95 @@ configs:
     step: 50
   exclude: []
 
+# ======================================================
+# DISTILLATION INPUT
+# ======================================================
+
 distillation_input:
   nvecs: 64
   lt: 64
   ntsrc: 8
   tsrc_step: 8
 
+# ======================================================
+# FLAVOR CHANNELS
+# ======================================================
+
 flavors:
   - light_light
   - charm_light
   - charm_charm
 
-# =======================================================
+# ======================================================
 # SINGLE-MESON OPERATORS
-# =======================================================
+# ======================================================
+
 operators:
 
-  # ======================================================
   # 0−  (A1u)
-  # ======================================================
 
   pseudoscalar_A1u_light:
-
-    irrep: "A1u"
-    mesons: ["light_light"]
-    insertions:
-      - pi_none
-      - pi_2_none
-      - pi_nabla
-      - pi_B
-      - pi_D
-
+    irrep: A1u
+    mesons: [light_light]
+    insertions: [pi_none, pi_2_none, pi_nabla, pi_B, pi_D]
 
   pseudoscalar_A1u_charm_light:
-
-    irrep: "A1u"
-    mesons: ["charm_light"]
-    insertions:
-      - pi_none
-      - pi_2_none
-      - pi_nabla
-      - pi_B
-      - pi_D
-
+    irrep: A1u
+    mesons: [charm_light]
+    insertions: [pi_none, pi_2_none, pi_nabla, pi_B, pi_D]
 
   pseudoscalar_A1u_charm_charm:
+    irrep: A1u
+    mesons: [charm_charm]
+    insertions: [pi_none, pi_2_none, pi_nabla, pi_B, pi_D]
 
-    irrep: "A1u"
-    mesons: ["charm_charm"]
-    insertions:
-      - pi_none
-      - pi_2_none
-      - pi_nabla
-      - pi_B
-      - pi_D
-
-
-  # ======================================================
   # 0+  (A1g)
-  # ======================================================
 
   scalar_A1g_light:
-
-    irrep: "A1g"
-    mesons: ["light_light"]
-    insertions:
-      - a0_none
-      - a0_nabla
-      - a0_B
-      - a0_D
-
+    irrep: A1g
+    mesons: [light_light]
+    insertions: [a0_none, a0_nabla, a0_B, a0_D]
 
   scalar_A1g_charm_light:
-
-    irrep: "A1g"
-    mesons: ["charm_light"]
-    insertions:
-      - a0_none
-      - a0_nabla
-      - a0_B
-      - a0_D
-
+    irrep: A1g
+    mesons: [charm_light]
+    insertions: [a0_none, a0_nabla, a0_B, a0_D]
 
   scalar_A1g_charm_charm:
+    irrep: A1g
+    mesons: [charm_charm]
+    insertions: [a0_none, a0_nabla, a0_B, a0_D]
 
-    irrep: "A1g"
-    mesons: ["charm_charm"]
-    insertions:
-      - a0_none
-      - a0_nabla
-      - a0_B
-      - a0_D
-
-
-  # ======================================================
   # 1−  (T1u)
-  # ======================================================
 
   vector_T1u_light:
-
-    irrep: "T1u"
-    mesons: ["light_light"]
-    insertions:
-      - rho_none
-      - rho_nabla
-      - rho_B
-      - rho_D
-
+    irrep: T1u
+    mesons: [light_light]
+    insertions: [rho_none, rho_nabla, rho_B, rho_D]
 
   vector_T1u_charm_light:
-
-    irrep: "T1u"
-    mesons: ["charm_light"]
-    insertions:
-      - rho_none
-      - rho_nabla
-      - rho_B
-      - rho_D
-
+    irrep: T1u
+    mesons: [charm_light]
+    insertions: [rho_none, rho_nabla, rho_B, rho_D]
 
   vector_T1u_charm_charm:
+    irrep: T1u
+    mesons: [charm_charm]
+    insertions: [rho_none, rho_nabla, rho_B, rho_D]
 
-    irrep: "T1u"
-    mesons: ["charm_charm"]
-    insertions:
-      - rho_none
-      - rho_nabla
-      - rho_B
-      - rho_D
-
-
-  # ======================================================
   # 1+  (T1g)
-  # ======================================================
 
   axial_T1g_light:
-
-    irrep: "T1g"
-    mesons: ["light_light"]
-    insertions:
-      - a1_none
-      - a1_nabla
-      - a1_B
-      - a1_D
-
+    irrep: T1g
+    mesons: [light_light]
+    insertions: [a1_none, a1_nabla, a1_B, a1_D]
 
   axial_T1g_charm_light:
-
-    irrep: "T1g"
-    mesons: ["charm_light"]
-    insertions:
-      - a1_none
-      - a1_nabla
-      - a1_B
-      - a1_D
-
+    irrep: T1g
+    mesons: [charm_light]
+    insertions: [a1_none, a1_nabla, a1_B, a1_D]
 
   axial_T1g_charm_charm:
-
-    irrep: "T1g"
-    mesons: ["charm_charm"]
-    insertions:
-      - a1_none
-      - a1_nabla
-      - a1_B
-      - a1_D
+    irrep: T1g
+    mesons: [charm_charm]
+    insertions: [a1_none, a1_nabla, a1_B, a1_D]

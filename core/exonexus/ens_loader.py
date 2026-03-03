@@ -28,7 +28,7 @@ def load_yaml_file(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def load_config(path: str) -> dict:
+def load_ens(path: str) -> dict:
     """
     Load YAML config with optional `extends` support.
     """
