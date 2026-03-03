@@ -1,0 +1,1 @@
+python3 create_binned_tasks.py --in_file 'ens_files/b3.6_ms0.25_mud-0.013_s40t64.yml' --cfg_i 700 --cfg_f 1110 --cfg_step 50 --run_dir '../eric-l40t64/ini-binned' --overwrite --list_tasks chroma_peram --num_vecs 64

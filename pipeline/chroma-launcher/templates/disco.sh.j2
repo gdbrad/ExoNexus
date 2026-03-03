@@ -1,0 +1,49 @@
+#!/bin/bash
+# template for computing disconnected diagrams with chroma 
+
+#SBATCH --nodes={{ disco_slurm_nodes }}
+#SBATCH --partition=dc-gpu
+#SBATCH --gpu-bind=none
+#SBATCH --account=exotichadrons
+#SBATCH -t {{ disco_chroma_minutes }}
+#SBATCH --gres=gpu:{{ disco_num_gpu }}
+
+disco_file={{ run_path }}/disco_sdb/disco_cfg{{ cfg_id }}.sdb
+# Check if the file exists and delete it if it does
+if [ -f "$disco_file" ]; then
+    echo "File $disco_file exists. Deleting it."
+    rm "$disco_file"
+else
+    echo "File $disco_file has not been generated yet. Continuing..."
+fi
+
+export OPENBLAS_NUM_THREADS={{ superbblas_threads }}
+export OMP_NUM_THREADS={{ omp_threads }}
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export QUDA_ENABLE_GDR=1
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+export GPUDIRECT='-gpudirect'
+
+CODE_DIR={{ code_dir }}
+myenv=$CODE_DIR/install-scripts/machines/env-new-jureca-gpu.sh
+source $myenv 
+chroma=$CODE_DIR/install/chroma/bin/chroma
+
+
+BASE_DIR={{ run_path }}
+if [ ! -d "$BASE_DIR/res/log/disco" ]; then
+  mkdir -p "$BASE_DIR/res/log/disco";
+fi 
+if [ ! -d "$BASE_DIR/res/out/disco" ]; then
+  mkdir -p "$BASE_DIR/res/out/disco";
+fi 
+
+log=$BASE_DIR/res/log/disco/disco_{{ cfg_id }}.log
+in=$BASE_DIR/ini-disco/cnfg{{ cfg_id }}/numvec64/disco_cfg{{ cfg_id }}.ini.xml
+out=$BASE_DIR/res/out/disco/disco_{{ cfg_id }}.out.xml
+stdout="$BASE_DIR/chroma_out/disco_{{ cfg_id }}.out"
+
+export OPTS=" -geom {{ disco_chroma_geometry | join(' ') }}"
+echo "START  "$(date "+%Y-%m-%dT%H:%M")
+srun -n {{ disco_slurm_nodes * disco_num_gpu }} -c 16 $chroma $OPTS -i $in -o $out -l $log > $stdout 2>&1
+echo "FINISH JOB "$(date "+%Y-%m-%dT%H:%M")

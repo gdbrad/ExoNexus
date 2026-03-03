@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# template for computing mesons with chroma in binned srun instances  
+
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1 
+#SBATCH --partition=dc-gpu
+#SBATCH --gpu-bind=none
+#SBATCH --account=exotichadrons
+#SBATCH -t 20:00:00
+#SBATCH --gres=gpu:4
+
+CODE_DIR={{ code_dir }}
+myenv=$CODE_DIR/env-new-jureca-gpu.sh
+formenv=$CODE_DIR/env_extra.sh
+source $myenv 
+source $formenv
+chroma=$CODE_DIR/install/chroma-quda-qdp-jit-double-nd4-cmake-superbblas-cuda/bin/chroma
+
+export OPENBLAS_NUM_THREADS=16
+export OMP_NUM_THREADS=16
+
+BASE_DIR={{ run_path }}
+if [ ! -d "$BASE_DIR/log/meson" ]; then
+  mkdir -p "$BASE_DIR/log/meson";
+fi 
+if [ ! -d "$BASE_DIR/out/meson" ]; then
+  mkdir -p "$BASE_DIR/out/meson";
+fi 
+
+export OPTS=" -geom 1 1 1 1"
+
+{% for cfg_id, device_id in cfg_ids_and_devices %}
+
+log_{{ cfg_id }}=$BASE_DIR/log/meson/meson_{{ meson_nvec }}_cfg{{ cfg_id }}.log
+in_{{ cfg_id }}=$BASE_DIR/ini-meson/cnfg{{ cfg_id }}/numvec{{ meson_nvec }}/meson_{{ meson_nvec }}_cfg{{ cfg_id }}.ini.xml
+out_{{ cfg_id }}=$BASE_DIR/out/meson/meson_{{ meson_nvec }}_cfg{{ cfg_id }}.out.xml
+output_{{ cfg_id }}="$BASE_DIR/chroma_out/binned/meson/meson_{{ meson_nvec }}_cfg{{ cfg_id }}.out"
+
+CUDA_VISIBLE_DEVICES={{ device_id }} srun --exclusive -n 1 --gres=gpu:1 -c 16 $chroma $OPTS -i $in_{{ cfg_id }} -o $out_{{ cfg_id }} -l $log_{{ cfg_id }} > $output_{{ cfg_id }} 2>&1 & 
+{% if not loop.last %}
+sleep 20
+{% endif %}
+{% endfor %}
+wait

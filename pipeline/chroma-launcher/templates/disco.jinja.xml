@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<chroma>
+  <Param>
+    <InlineMeasurements>
+      <elem>
+        <Name>DISCO_PROBING_3D_DEFLATION_SUPERB</Name>
+        <Param>
+        <Displacements>
+`
+	echo "disco_insertions" | while read name disp; do
+		[ xname != x ] && echo "<elem>disp</elem>"
+	done
+`
+        </Displacements>
+        <mom_list>
+           <elem>0 0 0</elem>
+        </mom_list>
+        <mass_label>{{ prop_mass_light_label }}</mass_label>
+        <probing_distance>{{ disco_probing_displacement }}</probing_distance>
+        <probing_power>{{ disco_probing_power }}</probing_power>
+	<first_color>{{ color_part*disco_max_colors_at_once }}</first_color>
+	<num_colors>{{ disco_max_colors_at_once }}</num_colors>
+        <noise_vectors>{{ disco_noise_vectors }}</noise_vectors>
+	<t_sources>{{ t_offset }}</t_sources>
+        <max_rhs>{{ disco_max_rhs }}</max_rhs>
+        <Propagator>
+          <version>10</version>
+          <quarkSpinType>FULL</quarkSpinType>
+          <obsvP>false</obsvP>
+          <numRetries>1</numRetries>
+          <FermionAction>
+            <FermAct>CLOVER</FermAct>
+                <Mass>{{ prop_mass_light_label }}</Mass>
+                <clovCoeff>{{ prop_clov_coeff }}</clovCoeff>
+            <FermState>
+              <Name>STOUT_FERM_STATE</Name>
+              <rho>0.125</rho>
+              <n_smear>1</n_smear>
+              <orthog_dir>-1</orthog_dir>
+              <FermionBC>
+                <FermBC>SIMPLE_FERMBC</FermBC>
+                <boundary>1 1 1 -1</boundary>
+              </FermionBC>
+            </FermState>
+          </FermionAction>
+            <InvertParam>
+              prop_inv
+            </InvertParam>
+        </Propagator>
+        <Projector>
+          disco_proj
+        </Projector>
+        <use_ferm_state_link>true</use_ferm_state_link>
+      </Param>
+      <NamedObject>
+        <gauge_id>default_gauge_field</gauge_id>
+        <sdb_file>{{ disco_file }}</sdb_file>
+      </NamedObject>
+    </elem>
+</InlineMeasurements>
+<nrow>{{NL}} {{NL}} {{NL}} {{NT}}</nrow>
+</Param>
+<RNG>
+  <Seed>
+    <elem>11</elem>
+    <elem>11</elem>
+    <elem>11</elem>
+    <elem>0</elem>
+  </Seed>
+</RNG>
+<Cfg>
+    <cfg_type>SZINQIO</cfg_type>
+    <cfg_file>{{ cfg_path }}/{{ cfg_name }}{{ cfg_id }}.lime</cfg_file>
+    <parallel_io>false</parallel_io>
+  </Cfg>
+</chroma>

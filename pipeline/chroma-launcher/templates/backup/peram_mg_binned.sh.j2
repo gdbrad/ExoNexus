@@ -1,0 +1,47 @@
+#!/bin/bash
+# template for computing perambulators with chroma  in binned srun instances 
+
+#SBATCH --nodes={{ prop_slurm_nodes }}
+#SBATCH --ntasks-per-node={{ prop_tasks_nodes }}
+#SBATCH --partition=dc-gpu
+#SBATCH --gpu-bind=none
+#SBATCH --account=exotichadrons
+#SBATCH -t {{ prop_chroma_minutes }}
+#SBATCH --gres=gpu:4
+
+
+export USERINSTALLATIONS=/p/project1/cslnpp/slnpp032/QCD/JUWELS_BOOSTER_EASYBUILD/TEST_INSTALL/
+
+ml GCC
+ml ParaStationMPI
+ml CHROMA
+vers=jwb_pmpi
+
+chroma=${EBROOTCHROMA}/bin/chroma
+
+export OPENBLAS_NUM_THREADS=16
+export OMP_NUM_THREADS=16
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+BASE_DIR={{ run_path }}
+log_dir=$BASE_DIR/log/perams
+out_dir=$BASE_DIR/out/peram
+mkdir -p $log_dir
+mkdir -p $out_dir
+
+export OPTS=" {{ prop_chroma_geometry|join(' ') }}"
+export OPTS=" -geom 1 1 1 4 
+
+{% for cfg_id, device_id in cfg_ids_and_devices %}
+log_{{ cfg_id }}=$BASE_DIR/log/perams/perams_{{ cfg_id }}_numvecs-{{ num_vecs_perams }}.log
+in_{{ cfg_id }}=$BASE_DIR/ini-peram/cnfg{{ cfg_id }}/numvec{{ num_vecs_perams }}/peram_mg_{{ num_vecs_perams }}_cfg{{ cfg_id }}.ini.xml
+out_{{ cfg_id }}=$BASE_DIR/out/perams/perams_{{ cfg_id }}_numvecs-{{ num_vecs_perams }}.out.xml
+output_{{ cfg_id }}="$BASE_DIR/chroma_out/binned/perams_{{ cfg_id }}_numvecs-{{ num_vecs_perams }}.out"
+
+CUDA_VISIBLE_DEVICES={{ device_id }} srun --exclusive -n 4 --gres=gpu:1 -c 16 $chroma $OPTS -i $in_{{ cfg_id }} -o $out_{{ cfg_id }} -l $log_{{ cfg_id }} > $output_{{ cfg_id }} 2>&1 &
+{% if not loop.last %}
+sleep 20
+{% endif %}
+{% endfor %}
+wait
+
