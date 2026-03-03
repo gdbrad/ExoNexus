@@ -1,0 +1,24 @@
+paths:
+  gauge_configs: /p/data1/...
+  runtime_root: /p/scratch/exflash/dpi-data/b3.4-s32t64
+  launch_root: /p/scratch/exflash/dpi-data/b3.4-s32t64
+  eigs_sdb: /p/scratch/exflash/dpi-data/b3.4-s32t64/eigs_sdb
+
+cluster:
+  account: exncmf
+  partition: dc-gpu
+  facility: jureca
+  num_gpu: 1
+
+ensemble:
+  beta: 3.4
+  mud: -0.040
+  mc: 0.33
+  NL: 32
+  NT: 64
+  short_tag: b3.4_s32t64
+
+configs:
+  cfg_i: 200
+  cfg_f: 10072
+  cfg_d: 50
