@@ -7,3 +7,4 @@ Our ensemble was generated with fixed light and strange quark masses and dynamic
 We choose a set of four bare charm quark masses, $am_c$ to be 0.15,0.25,0.3,0.35, all in fm. 
 
 We compute the $D_s$ spectrum, which has flavor content $c\bar{s}$ using both point and smeared sink operators.
+
