@@ -1,0 +1,6 @@
+runtime/
+data/
+__pycache__/
+*.pyc
+*.log
+*.out
