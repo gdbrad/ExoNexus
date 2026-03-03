@@ -1,16 +1,21 @@
 ensemble:
+  short: b3.4_s32t64
+  long: test_b3.4_m-0.040m0.33_l32t64_nf3p1
+
   beta: 3.4
   mud: -0.040
   mc: 0.33
+
   NL: 32
   NT: 64
 
 configs:
-  cfgs: 10073
-  cfg_i: 200
-  cfg_f: 10072
-  cfg_d: 50
+  total: 10073
+  start: 200
+  stop: 10072
+  step: 50
 
 paths:
   gauge_configs: /p/data1/slnpp/GREGORY/CONFIGS/NF3P1/B3.4/B3.4_M-0.040M0.33_L32T64/NS8_LS1_G2
+  gauge_prefix: test_b3.4_m-0.040m0.33_l32t64_nf3p1_cfg_
   runtime_root: /p/scratch/exflash/dpi-data/b3.4-s32t64

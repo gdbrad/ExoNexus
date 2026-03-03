@@ -1,0 +1,75 @@
+extends: ../base/b3.4_s32t64.yaml
+
+cluster:
+  facility: jureca
+  partition: dc-gpu
+  account: exncmf
+  num_gpu: 1
+  omp_threads: 16
+  superbblas_threads: 16
+
+paths:
+  eigs_sdb: /p/scratch/exflash/dpi-data/b3.4-s32t64/eigs_sdb
+
+eigs:
+  slurm_nodes: 1
+  tasks_per_node: 1
+  geometry: [1,1,1,1]
+  minutes: 300
+  num_iter: 50
+  num_orthog: 20
+
+peram:
+  slurm_nodes: 4
+  num_gpu: 4
+  geometry: [2,2,2,2]
+  minutes: 60
+
+  mass_light: -0.040
+  mass_charm: 0.33
+
+  t_forward: 64
+  t_backward: 0
+  nvec: 64
+  zphases: 0.00
+
+  clov_coeff: 1.00
+  rho: 0.11
+  precision: 1e-08
+  max_iter: 500
+
+meson:
+  slurm_nodes: 4
+  geometry: [2,2,2,2]
+  minutes: 40
+  max_tslices: 64
+  parts: 4
+  nvec: 64
+  zphases: [0.00, 2.00]
+  t_forward: 64
+  t_backward: 0
+
+distillation:
+  frequency: 1
+  max_nvec: 96
+  num_vecs: 96
+  num_vecs_perams: 64
+
+  decay_dir: 3
+  t_start: 0
+  Nt_forward: 64
+  Nt_backward: 0
+
+  num_tries: -1
+  max_rhs: 20
+  phase: [0,0,0]
+  write_fingerprint: false
+
+  link_smear:
+    type: STOUT_SMEAR
+    fact: 0.1
+    num: 10
+    no_smear_dir: 3
+
+  gauge_id: default_gauge_field
+  colorvec_out: eigs
