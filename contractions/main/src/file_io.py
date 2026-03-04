@@ -49,7 +49,7 @@ class DistillationObjectsIO:
         if not os.path.isfile(yaml_path):
             raise FileNotFoundError(f"YAML config missing: {yaml_path}")
         with open(yaml_path, "r") as f:
-            cfg = yaml.safe_load(f)[self.ens]
+            cfg = yaml.safe_load(f)
 
         raw_paths = cfg["paths"]
         # First resolve base paths
@@ -74,14 +74,20 @@ class DistillationObjectsIO:
         self.config_ids = [c for c in self.config_ids if c not in exclude]
         
         # Distillation parameters
-        p = cfg["params"]
-        self.num_configs = p["num_configs"]
+        p = cfg["distillation_input"]
         self.nvecs = p["nvecs"]
         self.lt = p["lt"]
         self.ntsrc = p["ntsrc"]
         self.tsrc_step = p["tsrc_step"]
-        self.flavor_contents = p["flavor_contents"]
-        self.system = cfg["system"]
+
+        self.flavor_contents = cfg["flavors"]
+        # self.num_configs = p["num_configs"]
+        # self.nvecs = p["nvecs"]
+        # self.lt = p["lt"]
+        # self.ntsrc = p["ntsrc"]
+        # self.tsrc_step = p["tsrc_step"]
+        # self.flavor_contents = p["flavor_contents"]
+        # self.system = cfg["system"]
 
     def _file_path(self, flavor: str) -> str:
         if flavor not in self.filename_templates:

@@ -4,7 +4,7 @@ from opt_einsum import contract
 
 class PhiFactory:
     """
-    Builds the elementals \phi for:
+    Builds the elementals phi for:
         - local operators
         - gamma_i vector operators
         - nabla derivative operators
