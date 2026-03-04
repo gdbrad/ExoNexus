@@ -7,11 +7,27 @@ from distillation_data import DistillationData
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
+
+def make_run_dir(base_dir: Path, ensemble: str, mode: str) -> Path:
+    """Create a timestamped run directory with attempt suffixes to avoid overwriting."""
+    base_run_dir = base_dir / ensemble / mode
+    base_run_dir.mkdir(parents=True, exist_ok=True)
+
+    date_str = datetime.now().strftime("%Y%m%d")
+    run_dir = base_run_dir / f"run-{date_str}"
+    attempt = 1
+    while run_dir.exists():
+        run_dir = base_run_dir / f"run-{date_str}_{attempt}"
+        attempt += 1
+
+    run_dir.mkdir()
+    return run_dir
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True, help="Path to ensemble YAML file")
     parser.add_argument("--cfg_id", type=int, required=True, help="Configuration ID")
-    parser.add_argument("--outdir",required=True)
     args = parser.parse_args()
 
     # Load YAML
@@ -19,20 +35,33 @@ def main():
     with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
 
-    ensemble_name = yaml_data["ensemble"]["short"]
-    operators = yaml_data["operators"]
-    # Init correlator factory
-    proc = DistillationData(ensemble_name, args.cfg_id,args.yaml_file)
+    # Ensemble name is the top-level key
+    ensemble_name = list(yaml_data.keys())[0]
+    ensemble_cfg = yaml_data[ensemble_name]
+    operators = ensemble_cfg["operators"]
+
+    # Base path for tmp outputs
+    base_path = Path(ensemble_cfg["paths"]["base_path"])
+
+    # Initialize distillation data
+    proc = DistillationData(ensemble_name, args.yaml_file, args.cfg_id)
     proc.load_single_meson()
 
-    outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    # Create run directory structure
+    run_dir = make_run_dir(base_path, ensemble_name, "contractions")
+    log_dir = run_dir / "logs"
+    log_dir.mkdir(exist_ok=True)
+    corr_dir = run_dir / "correlators"
+    corr_dir.mkdir(exist_ok=True)
 
-    outfile = outdir / f"{ensemble_name}_cfg{args.cfg_id:04d}.h5"
-
+    # HDF5 output path
+    outfile = corr_dir / f"{ensemble_name}_cfg{args.cfg_id:04d}.h5"
     if outfile.exists():
         print(f"[SKIP] {outfile} already exists")
         return
+
+    print(f"[INFO] Writing single-meson matrix to {outfile}")
+
     with h5py.File(outfile, "w") as f_cfg:
         f_cfg.attrs["ensemble"] = ensemble_name
         f_cfg.attrs["cfg_id"] = args.cfg_id
@@ -79,7 +108,8 @@ def main():
                     except Exception as e:
                         print(f"[ERROR] {dataset_name}: {e}")
 
-    print(f"[DONE] cfg {args.cfg_id:04d} complete ")
+    print(f"[DONE] cfg {args.cfg_id:04d} complete in {run_dir}")
+
 
 if __name__ == "__main__":
     main()
