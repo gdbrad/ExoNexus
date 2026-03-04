@@ -12,12 +12,28 @@ ensemble:
 # DATA PATHS (Cluster Only)
 # ======================================================
 
+# path:
+#   #tape_path: /p/data1/slnpp/bradley1
+#   base_path: /gdb-data/b3.4-s32t64
+#   driver_path: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
+#   venv_activate: /p/project1/exoenv/activate.sh
+#   correlator_output: /p/project1/exflash/gdb-data/b3.4-s32t64/correlators
+
 paths:
-  tape_path: /p/data1/slnpp/bradley1
-  base_path: /p/project1/exflash/gdb-data/b3.4-s32t64
-  driver_path: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
-  venv_activate: /p/project1/exoenv/activate.sh
-  correlator_output: /p/project1/exflash/gdb-data/b3.4-s32t64/correlators
+  # If running on cluster, tape_path can be set via machine profile
+  # tape_path: /p/data1/slnpp/bradley1
+
+  # Base directory for data (relative or temp)
+  base_path: ./tmp/b3.4-s32t64
+
+  # Driver script path relative to repo root
+  driver_path: ./contractions/main/src/single_meson_driver.py
+
+  # Virtual environment activation script
+  venv_activate: ./envs/exoenv/activate.sh
+
+  # Where final correlators go (relative to base_path)
+  correlator_output: ./tmp/b3.4-s32t64/correlators
 
 # ======================================================
 # SLURM SETTINGS
@@ -30,7 +46,7 @@ slurm:
   ntasks_per_node: 1
   cpus_per_task: 3
   partition: dc-cpu
-  time: "00:20:00"
+  time_minutes: 600
 
 # ======================================================
 # GAUGE CONFIGURATIONS
