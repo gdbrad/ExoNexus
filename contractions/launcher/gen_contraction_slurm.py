@@ -8,16 +8,30 @@ def chunk_list(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-def make_run_dir(base_dir: Path, ensemble: str, mode: str) -> Path:
-    base_run_dir = base_dir / ensemble / mode
-    base_run_dir.mkdir(parents=True, exist_ok=True)
+from pathlib import Path
+from datetime import datetime
+
+def make_run_dir(ensemble_short: str) -> Path:
+    base = Path("/p/project1/exflash/contractions-tmp")
     date_str = datetime.now().strftime("%Y%m%d")
-    run_dir = base_run_dir / f"run-{date_str}"
-    for attempt in count(1):
-        if not run_dir.exists():
-            run_dir.mkdir()
-            return run_dir
-        run_dir = base_run_dir / f"run-{date_str}_{attempt}"
+
+    ens_dir = base / ensemble_short
+    ens_dir.mkdir(parents=True, exist_ok=True)
+
+    run_dir = ens_dir / f"run-{date_str}"
+    attempt = 1
+    while run_dir.exists():
+        run_dir = ens_dir / f"run-{date_str}_{attempt}"
+        attempt += 1
+
+    run_dir.mkdir()
+
+    # Create subdirs
+    (run_dir / "correlators").mkdir()
+    (run_dir / "logs").mkdir()
+    (run_dir / "scripts").mkdir()
+
+    return run_dir
 
 def generate_batch_scripts(yaml_file: str, tmp_base: str = "./tmp", chunk_size: int = 12):
     yaml_path = Path(yaml_file)
@@ -48,11 +62,11 @@ def generate_batch_scripts(yaml_file: str, tmp_base: str = "./tmp", chunk_size: 
     exclude = set(cfgs_cfg.get("exclude", []))
     cfg_ids = [c for c in cfg_ids if c not in exclude]
 
-    tmp_base_path = Path(tmp_base)
-    run_dir = make_run_dir(tmp_base_path, ensemble_name, "contractions")
+    ensemble_name = full_config["ensemble"]["short"]
+    run_dir = make_run_dir(ensemble_name)
+    corr_dir = run_dir / "correlators"
     log_dir = run_dir / "logs"
-    log_dir.mkdir(exist_ok=True)
-    corr_dir = run_dir
+    script_dir = run_dir / "scripts"
     driver_path = cfg["paths"]["driver_path"]
 
     # Time format
@@ -65,7 +79,8 @@ def generate_batch_scripts(yaml_file: str, tmp_base: str = "./tmp", chunk_size: 
     chunks = list(chunk_list(cfg_ids, chunk_size))
 
     for idx, chunk in enumerate(chunks, 1):
-        script_path = run_dir / f"contract_{ensemble_name}_part{idx:02d}.sh"
+        #script_path = run_dir / f"contract_{ensemble_name}_part{idx:02d}.sh"
+        script_path = script_dir / f"contract_{ensemble_name}_part{idx:02d}.sh"
         with open(script_path, "w") as f:
             f.write(f"""#!/bin/bash
 #SBATCH --job-name={slurm['job_name']}_p{idx:02d}
@@ -91,7 +106,7 @@ for CFG_ID in {' '.join(map(str, chunk))}; do
         echo "Skipping cfg $CFG_ID — output already exists"
         continue
     fi
-    srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID --tmp_base "{tmp_base}" \\
+    srun python3 -u $SRC_PATH --yaml_file "$YAML_FILE" --cfg_id $CFG_ID --outidr "$CORR_DIR"\\
          > {log_dir}/cfg_${{CFG_ID}}.log 2>&1 &
 done
 
@@ -107,7 +122,6 @@ echo "Part {idx} finished — correlators in {corr_dir}"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True)
-    parser.add_argument("--tmp_base", default="./tmp")
     parser.add_argument("--chunk", type=int, default=12)
     args = parser.parse_args()
-    generate_batch_scripts(args.yaml_file, args.tmp_base, args.chunk)
+    generate_batch_scripts(args.yaml_file, args.chunk)
