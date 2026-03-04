@@ -19,7 +19,7 @@ def main():
     yaml_path = Path(args.yaml_file)
     with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
-    ens = list(yaml_data.keys())[0]
+    ens = list(yaml_data.keys())[1]
     settings = yaml_data[ens]
     operators = settings["operators"]
 

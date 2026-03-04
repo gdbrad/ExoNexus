@@ -1,0 +1,27 @@
+laptop:
+  tape_path: /home/grant/data/tape
+  base_path: /home/grant/data/gdb-data
+  output_dir: ./runs
+  log_dir: ./logs
+  src_path: /home/grant/repos/exotraction/src/single_meson_driver.py
+  slurm:
+    nodes: 1
+    cpus_per_task: 4
+    ntasks_per_node: 1
+    partition: local
+    time_minutes: 10
+    account: local_user
+
+cluster:
+  tape_path: /p/data1/slnpp/bradley1
+  base_path: /p/project1/exflash/gdb-data
+  output_dir: /p/scratch/exflash/dpi-data
+  log_dir: /p/scratch/exflash/logs
+  src_path: /p/project1/exflash/gdb-code/exotraction/src/single_meson_driver.py
+  slurm:
+    nodes: 1
+    cpus_per_task: 16
+    ntasks_per_node: 1
+    partition: dc-gpu
+    time_minutes: 60
+    account: exncmf

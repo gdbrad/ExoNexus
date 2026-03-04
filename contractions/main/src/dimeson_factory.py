@@ -27,11 +27,7 @@ gamma_insertion_dict = {
     'a1': gamma[5],
     'b1': gamma[4] @ gamma[5],
 }
-
-
-# ---------------------------------------------------------
-# Helper: Build full cubic orbit of a momentum vector
-# ---------------------------------------------------------
+#Build full cubic orbit of a momentum vector
 def cubic_orbit(p: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
     """
     Generate all cubic rotations and reflections of p.
@@ -46,10 +42,7 @@ def cubic_orbit(p: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
 
     return list(orbit)
 
-
-# ---------------------------------------------------------
-# Bare operator
-# ---------------------------------------------------------
+# Bare operator construction 
 @dataclass
 class BareOperator:
     """
@@ -80,9 +73,6 @@ class BareOperator:
         _, d = self.ins.split('_')
         return d if d != 'none' else None
     
-# ---------------------------------------------------------
-# DiMesonFactory
-# ---------------------------------------------------------
 class DiMesonFactory:
     """
     Refactored:
@@ -117,9 +107,7 @@ class DiMesonFactory:
         m1_list = [meson1_list] if isinstance(meson1_list, str) else meson1_list
         m2_list = [meson2_list] if isinstance(meson2_list, str) else meson2_list
 
-        # -------------------------------------------------
-        # Step 1: Build unique |p|^2 shells
-        # -------------------------------------------------
+        # step 1: build unique |p|^2 shells
         shells = {}
 
         for p in momentum_list:
@@ -132,9 +120,7 @@ class DiMesonFactory:
             if p2 not in shells:
                 shells[p2] = cubic_orbit(p)
 
-        # -------------------------------------------------
-        # Step 2: Create projected operators
-        # -------------------------------------------------
+        # 2. create projected operators onto definite momentum 
         self.pairs = []
 
         for p2_shell, orbit in shells.items():
