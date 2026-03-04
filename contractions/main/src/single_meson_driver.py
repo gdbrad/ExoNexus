@@ -10,11 +10,14 @@ from meson_factory import MesonFactory
 def make_run_dir(base_dir: Path, ensemble_short: str, mode: str = "contractions") -> Path:
     """
     Create a timestamped run directory with attempt suffixes to avoid overwriting.
-    Directory layout:
-      base_dir / ensemble_short / mode / run-YYYYMMDD[_attempt]
-      + subdirs: logs, correlators
+    If base_dir already ends with ensemble_short, do not append it again.
     """
-    base_run_dir = base_dir / ensemble_short / mode
+    base_dir = base_dir.resolve()
+    if base_dir.name != ensemble_short:
+        base_run_dir = base_dir / ensemble_short / mode
+    else:
+        base_run_dir = base_dir / mode
+
     base_run_dir.mkdir(parents=True, exist_ok=True)
 
     date_str = datetime.now().strftime("%Y%m%d")
@@ -24,14 +27,13 @@ def make_run_dir(base_dir: Path, ensemble_short: str, mode: str = "contractions"
         run_dir = base_run_dir / f"run-{date_str}_{attempt}"
         attempt += 1
 
-    # Create run dir and subdirectories
+    # Create subdirs
     run_dir.mkdir()
     (run_dir / "logs").mkdir()
     (run_dir / "correlators").mkdir()
-    (run_dir / "scripts").mkdir()  # optional for batch scripts
+    (run_dir / "scripts").mkdir()  # optional
 
     return run_dir
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True, help="Path to ensemble YAML file")
