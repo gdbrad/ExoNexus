@@ -7,10 +7,14 @@ from distillation_data import DistillationData
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
-
-def make_run_dir(base_dir: Path, ensemble: str, mode: str) -> Path:
-    """Create a timestamped run directory with attempt suffixes to avoid overwriting."""
-    base_run_dir = base_dir / ensemble / mode
+def make_run_dir(base_dir: Path, ensemble_short: str, mode: str = "contractions") -> Path:
+    """
+    Create a timestamped run directory with attempt suffixes to avoid overwriting.
+    Directory layout:
+      base_dir / ensemble_short / mode / run-YYYYMMDD[_attempt]
+      + subdirs: logs, correlators
+    """
+    base_run_dir = base_dir / ensemble_short / mode
     base_run_dir.mkdir(parents=True, exist_ok=True)
 
     date_str = datetime.now().strftime("%Y%m%d")
@@ -20,42 +24,56 @@ def make_run_dir(base_dir: Path, ensemble: str, mode: str) -> Path:
         run_dir = base_run_dir / f"run-{date_str}_{attempt}"
         attempt += 1
 
+    # Create run dir and subdirectories
     run_dir.mkdir()
-    return run_dir
+    (run_dir / "logs").mkdir()
+    (run_dir / "correlators").mkdir()
+    (run_dir / "scripts").mkdir()  # optional for batch scripts
 
+    return run_dir
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True, help="Path to ensemble YAML file")
     parser.add_argument("--cfg_id", type=int, required=True, help="Configuration ID")
+    parser.add_argument("--tmp_base", default="/p/project1/exflash/contractions-tmp",
+                        help="Base directory for temporary outputs")
     args = parser.parse_args()
 
+    # Resolve YAML path to absolute
+    yaml_path = Path(args.yaml_file).resolve()
+    if not yaml_path.is_file():
+        raise FileNotFoundError(f"YAML file not found: {yaml_path}")
+
     # Load YAML
-    yaml_path = Path(args.yaml_file)
     with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
 
-    # Ensemble name is the top-level key
-    ensemble_name = list(yaml_data.keys())[0]
-    ensemble_cfg = yaml_data[ensemble_name]
-    operators = ensemble_cfg["operators"]
+    # Determine ensemble short name
+    # Supports both flat YAML or nested under ensemble_short
+    if "ensemble" in yaml_data and "short" in yaml_data["ensemble"]:
+        ensemble_short = yaml_data["ensemble"]["short"]
+        operators = yaml_data["operators"]
+        paths = yaml_data.get("paths", {})
+    else:
+        # Nested under ensemble name
+        ensemble_short = list(yaml_data.keys())[0]
+        ensemble_cfg = yaml_data[ensemble_short]
+        operators = ensemble_cfg["operators"]
+        paths = ensemble_cfg.get("paths", {})
 
-    # Base path for tmp outputs
-    base_path = Path(ensemble_cfg["paths"]["base_path"])
+    # Base path for run directories
+    base_path = Path(paths.get("base_path", args.tmp_base)).resolve()
+    run_dir = make_run_dir(base_path, ensemble_short, mode="contractions")
+    log_dir = run_dir / "logs"
+    corr_dir = run_dir / "correlators"
 
     # Initialize distillation data
-    proc = DistillationData(ensemble_name, args.yaml_file, args.cfg_id)
+    proc = DistillationData(ensemble_short, str(yaml_path), args.cfg_id)
     proc.load_single_meson()
 
-    # Create run directory structure
-    run_dir = make_run_dir(base_path, ensemble_name, "contractions")
-    log_dir = run_dir / "logs"
-    log_dir.mkdir(exist_ok=True)
-    corr_dir = run_dir / "correlators"
-    corr_dir.mkdir(exist_ok=True)
-
-    # HDF5 output path
-    outfile = corr_dir / f"{ensemble_name}_cfg{args.cfg_id:04d}.h5"
+    # HDF5 output file
+    outfile = corr_dir / f"{ensemble_short}_cfg{args.cfg_id:04d}.h5"
     if outfile.exists():
         print(f"[SKIP] {outfile} already exists")
         return
@@ -63,7 +81,7 @@ def main():
     print(f"[INFO] Writing single-meson matrix to {outfile}")
 
     with h5py.File(outfile, "w") as f_cfg:
-        f_cfg.attrs["ensemble"] = ensemble_name
+        f_cfg.attrs["ensemble"] = ensemble_short
         f_cfg.attrs["cfg_id"] = args.cfg_id
         f_cfg.attrs["nvecs"] = proc.nvecs
         f_cfg.attrs["nt"] = proc.lt
@@ -109,7 +127,8 @@ def main():
                         print(f"[ERROR] {dataset_name}: {e}")
 
     print(f"[DONE] cfg {args.cfg_id:04d} complete in {run_dir}")
-
+    print(f"[INFO] Correlators written to: {corr_dir}")
+    print(f"[INFO] Logs in: {log_dir}")
 
 if __name__ == "__main__":
     main()
