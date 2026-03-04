@@ -1,4 +1,4 @@
-extends: ../base/b3.4_s32t64.yaml
+extends: ../base/b34s32t64.yml
 
 # ======================================================
 # ENSEMBLE METADATA
@@ -15,13 +15,7 @@ ensemble:
 paths:
   tape_path: /p/data1/slnpp/bradley1
   base_path: /p/project1/exflash/gdb-data/b3.4-s32t64
-
-# ======================================================
-# EXECUTION SETTINGS (used by batch generator)
-# ======================================================
-
-execution:
-  driver_script: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
+  driver_path: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
   venv_activate: /p/project1/exoenv/activate.sh
   correlator_output: /p/project1/exflash/gdb-data/b3.4-s32t64/correlators
 

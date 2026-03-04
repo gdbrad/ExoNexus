@@ -3,7 +3,7 @@ from datetime import datetime
 import argparse
 from pathlib import Path
 
-from core.exonexus.config_loader import load_config
+from core.exonexus.ens_loader import load_ens
 
 
 def chunk_list(lst, n):
@@ -11,9 +11,9 @@ def chunk_list(lst, n):
         yield lst[i:i + n]
 
 
-def generate_batch_scripts(config_file: str, chunk_size: int = 12):
+def generate_batch_scripts(ens_file: str, chunk_size: int = 12):
 
-    cfg = load_config(config_file)
+    cfg = load_ens(ens_file)
 
     ens = cfg["ensemble"]["short"]
     slurm = cfg["slurm"]
@@ -37,6 +37,7 @@ def generate_batch_scripts(config_file: str, chunk_size: int = 12):
     run_dir = base_out / f"run-{now.strftime('%Y%m%d')}"
     log_dir = run_dir / "logs"
     corr_dir = run_dir / "correlators"
+    #driver_path = Path(cfg["paths"]["driver_path"]).expanduser()
 
     run_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(exist_ok=True)
@@ -69,6 +70,7 @@ def generate_batch_scripts(config_file: str, chunk_size: int = 12):
     for idx, chunk in enumerate(chunks, 1):
 
         script_path = run_dir / f"contract_{ens}_part{idx:02d}.sh"
+        driver_path = Path(cfg["paths"].get("driver_path", "./single_meson_driver.py")).resolve()
 
         with open(script_path, "w") as f:
             f.write(f"""#!/bin/bash
@@ -84,9 +86,9 @@ def generate_batch_scripts(config_file: str, chunk_size: int = 12):
 
 source /p/scratch/exflash/sc_venv_template/activate.sh
 
-SRC_PATH='/p/project1/exflash/gdb-code/exotraction/src/single_meson_driver.py'
 YAML_FILE="{Path(config_file).resolve()}"
 CORR_DIR="{corr_dir}"
+SRC_PATH="{driver_path}"
 
 echo "=== Job $SLURM_JOB_ID | Part {idx}/{len(chunks)} | $(date) ==="
 echo "Configs: {' '.join(map(str, chunk))}"
@@ -122,8 +124,8 @@ echo "Part {idx} finished — correlators in {corr_dir}"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--ens", type=str, required=True)
     parser.add_argument("--chunk", type=int, default=12)
     args = parser.parse_args()
 
-    generate_batch_scripts(args.config, args.chunk)
+    generate_batch_scripts(args.ens, args.chunk)

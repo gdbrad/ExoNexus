@@ -40,7 +40,7 @@ def load_ens(path: str) -> dict:
 
     # Load parent
     parent_path = (path.parent / config["extends"]).resolve()
-    parent_config = load_config(parent_path)
+    parent_config = load_ens(parent_path)
 
     # Remove extends key before merge
     config = {k: v for k, v in config.items() if k != "extends"}
