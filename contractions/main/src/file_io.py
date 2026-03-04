@@ -56,14 +56,14 @@ class DistillationObjectsIO:
 
         raw_paths = cfg.get("paths", {})
         self.base_path = raw_paths.get("base_path", "")
-        self.data_path = raw_paths.get("data_path", self.base_path)
+        self.data_path = raw_paths.get("data_path", f"/p/scratch/exflash/dpi-data/{self.ens.replace('_', '-')}")
 
-        # Setup default fallback paths for distillation objects
+        # Setup default fallback paths for distillation objects matching the YAML
         self.paths = cfg.get("data_dirs", {
-            "meson": os.path.join(self.data_path, "meson_sdb", f"numvec64"),
-            "light": os.path.join(self.data_path, "perams_sdb", f"numvec64"),
-            "charm": os.path.join(self.data_path, "perams_charm_sdb", f"numvec64"),
-            "strange": os.path.join(self.data_path, "perams_strange_sdb")
+            "meson": os.path.join(self.data_path, "meson_h5"),
+            "light": os.path.join(self.data_path, "perams_h5"),
+            "charm": os.path.join(self.data_path, "perams_charm_h5"),
+            "strange": os.path.join(self.data_path, "perams_strange_h5")
         })
         
         # Use filenames from config if present, else fallback to standard Chroma format

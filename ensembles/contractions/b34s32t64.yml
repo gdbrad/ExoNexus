@@ -9,9 +9,15 @@ b3.4_s32t64:  # ensemble short name
   # ======================================================
   paths:
     base_path: /p/project1/exflash/contractions-tmp/b3.4-s32t64
+    data_path: /p/scratch/exflash/dpi-data/b3.4-s32t64
     driver_path: /p/project1/exflash/ExoNexus/contractions/main/src/single_meson_driver.py
     venv_activate: ./envs/exoenv/activate.sh
     correlator_output: /correlators
+
+  data_dirs:
+    meson: /p/scratch/exflash/dpi-data/b3.4-s32t64/meson_h5
+    light: /p/scratch/exflash/dpi-data/b3.4-s32t64/perams_h5
+    charm: /p/scratch/exflash/dpi-data/b3.4-s32t64/perams_charm_h5
 
   # ======================================================
   # SLURM SETTINGS
