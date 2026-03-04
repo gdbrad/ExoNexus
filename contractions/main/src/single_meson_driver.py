@@ -7,74 +7,67 @@ from distillation_data import DistillationData
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
+
 def make_run_dir(base_dir: Path, ensemble_short: str, mode: str = "contractions") -> Path:
     """
-    Create a timestamped run directory with attempt suffixes to avoid overwriting.
-    If base_dir already ends with ensemble_short, do not append it again.
+    Create a timestamped run directory:
+    /base_dir/ensemble_short/mode/run-YYYYMMDD[_n]
+    Avoid overwriting by appending a numeric suffix if needed.
     """
-    base_dir = base_dir.resolve()
-    if base_dir.name != ensemble_short:
-        base_run_dir = base_dir / ensemble_short / mode
-    else:
-        base_run_dir = base_dir / mode
-
+    base_run_dir = base_dir / ensemble_short / mode
     base_run_dir.mkdir(parents=True, exist_ok=True)
 
     date_str = datetime.now().strftime("%Y%m%d")
     run_dir = base_run_dir / f"run-{date_str}"
-    attempt = 1
+    n = 1
     while run_dir.exists():
-        run_dir = base_run_dir / f"run-{date_str}_{attempt}"
-        attempt += 1
+        run_dir = base_run_dir / f"run-{date_str}_{n}"
+        n += 1
 
-    # Create subdirs
+    # Create final run dir and subdirectories
     run_dir.mkdir()
-    (run_dir / "logs").mkdir()
     (run_dir / "correlators").mkdir()
-    (run_dir / "scripts").mkdir()  # optional
+    (run_dir / "logs").mkdir()
+    (run_dir / "scripts").mkdir()
 
     return run_dir
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True, help="Path to ensemble YAML file")
     parser.add_argument("--cfg_id", type=int, required=True, help="Configuration ID")
-    parser.add_argument("--tmp_base", default="/p/project1/exflash/contractions-tmp",
-                        help="Base directory for temporary outputs")
     args = parser.parse_args()
 
-    # Resolve YAML path to absolute
-    yaml_path = Path(args.yaml_file).resolve()
-    if not yaml_path.is_file():
+    # Load YAML
+    yaml_path = Path(args.yaml_file).resolve()  # ensure absolute path
+    if not yaml_path.exists():
         raise FileNotFoundError(f"YAML file not found: {yaml_path}")
 
-    # Load YAML
     with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
 
-    # Determine ensemble short name
-    # Supports both flat YAML or nested under ensemble_short
-    if "ensemble" in yaml_data and "short" in yaml_data["ensemble"]:
-        ensemble_short = yaml_data["ensemble"]["short"]
-        operators = yaml_data["operators"]
-        paths = yaml_data.get("paths", {})
-    else:
-        # Nested under ensemble name
-        ensemble_short = list(yaml_data.keys())[0]
-        ensemble_cfg = yaml_data[ensemble_short]
-        operators = ensemble_cfg["operators"]
-        paths = ensemble_cfg.get("paths", {})
+    # Top-level key is ensemble name
+    ensemble_name = list(yaml_data.keys())[0]
+    ensemble_cfg = yaml_data[ensemble_name]
+    operators = ensemble_cfg.get("operators", {})
+    if not operators:
+        raise ValueError("No operators found in YAML file under ensemble key")
 
-    # Base path for run directories
-    base_path = Path(paths.get("base_path", args.tmp_base)).resolve()
+    # Base path for temporary outputs
+    base_path = Path(ensemble_cfg["paths"]["base_path"])
+    ensemble_short = ensemble_cfg["ensemble"]["short"]
+
+    # Initialize distillation data
+    proc = DistillationData(ensemble_short, args.yaml_file, args.cfg_id)
+    proc.load_single_meson()
+
+    # Create run directory structure
     run_dir = make_run_dir(base_path, ensemble_short, mode="contractions")
     log_dir = run_dir / "logs"
     corr_dir = run_dir / "correlators"
 
-    # Initialize distillation data
-    proc = DistillationData(ensemble_short, str(yaml_path), args.cfg_id)
-    proc.load_single_meson()
-
-    # HDF5 output file
+    # HDF5 output path
     outfile = corr_dir / f"{ensemble_short}_cfg{args.cfg_id:04d}.h5"
     if outfile.exists():
         print(f"[SKIP] {outfile} already exists")
@@ -94,7 +87,7 @@ def main():
             mesons = irrep_settings["mesons"]
             insertions = irrep_settings["insertions"]
 
-            print(f"[INFO] {irrep}")
+            print(f"[INFO] Processing irrep: {irrep}")
             factory = MesonFactory()
             ops = factory.generate(
                 meson=mesons,
@@ -129,8 +122,8 @@ def main():
                         print(f"[ERROR] {dataset_name}: {e}")
 
     print(f"[DONE] cfg {args.cfg_id:04d} complete in {run_dir}")
-    print(f"[INFO] Correlators written to: {corr_dir}")
-    print(f"[INFO] Logs in: {log_dir}")
+    print(f"[INFO] Logs in {log_dir}, correlators in {corr_dir}")
+
 
 if __name__ == "__main__":
     main()
