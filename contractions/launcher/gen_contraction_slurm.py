@@ -32,7 +32,7 @@ def make_run_dir(base_path: str) -> Path:
     return run_dir
 
 def generate_batch_scripts(yaml_file: str, chunk_size: int = 12):
-    yaml_path = Path(yaml_file)
+    yaml_path = Path(yaml_file).resolve()
     with open(yaml_path) as f:
         full_config = yaml.safe_load(f)
 
@@ -51,6 +51,8 @@ def generate_batch_scripts(yaml_file: str, chunk_size: int = 12):
     cfgs_cfg = ensemble_cfg["configs"]
     driver_path = ensemble_cfg["paths"]["driver_path"]
     base_path = ensemble_cfg["paths"]["base_path"]
+
+    YAML_FILE = str(yaml_path)  # for script formatting
 
     # Create the run directory using the YAML base_path
     run_dir = make_run_dir(base_path)
@@ -99,7 +101,7 @@ echo "=== Job $SLURM_JOB_ID | Part {idx}/{len(chunks)} | $(date) ==="
 echo "Configs: {' '.join(map(str, chunk))}"
 
 SRC_PATH="{driver_path}"
-YAML_FILE="{yaml_path}"
+YAML_FILE="{YAML_FILE}"
 CORR_DIR="{corr_dir}"
 
 for CFG_ID in {' '.join(map(str, chunk))}; do
