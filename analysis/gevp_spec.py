@@ -58,10 +58,10 @@ def solve_gevp_jack(Cjk, t0, tol_rel=1e-6):
     N_kept = len(evals)
     print(f"GEVP: keeping {N_kept} / {N} modes at t0={t0}.")
     
-    # Compute C0^{-1/2} restricted to the active subspace
-    C0_inv_sqrt = evecs @ np.diag(evals**-0.5) @ evecs.conj().T
+    # Construct projector V mapping to the safe N_kept subspace
+    V = evecs @ np.diag(evals**-0.5)
 
-    # 3. Solve GEVP block-by-block
+    # 3. Solve GEVP block-by-block in the reduced subspace
     lam = np.zeros((Ncfg, Lt, N_kept))
     
     for k in range(Ncfg):
@@ -69,8 +69,8 @@ def solve_gevp_jack(Cjk, t0, tol_rel=1e-6):
         for t in range(Lt):
             Ct = 0.5 * (Cb[t] + Cb[t].conj().T)
             
-            # Map generalized eigenproblem to standard eigenproblem
-            M = C0_inv_sqrt @ Ct @ C0_inv_sqrt.conj().T
+            # Project Ct into the active space: V^dagger Ct V 
+            M = V.conj().T @ Ct @ V
             w, _ = la.eigh(M)
             
             # Sort descending (largest eigenvalue == ground state principal)

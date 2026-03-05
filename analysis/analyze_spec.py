@@ -93,11 +93,14 @@ def main():
                 # 2. Solve GEVP & Plot Principals
                 lam_jk = gevp_spec.solve_gevp_jack(Cjk, args.t0)
                 
+                # Dynamically check how many states we successfully kept
+                N_kept = lam_jk.shape[-1]
+                
                 # Use correct jackknife covariance translation for the ground state
                 lam0 = gevp_spec.jack_to_gvar(lam_jk[:, :, 0])
                 
                 plt.figure()
-                for n in range(Nops):
+                for n in range(N_kept):
                     lam_gv = gevp_spec.jack_to_gvar(lam_jk[:, :, n])
                     plt.errorbar(range(Lt), gv.mean(lam_gv), yerr=gv.sdev(lam_gv), fmt='o', label=f"state {n}")
                 plt.yscale("log")

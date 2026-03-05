@@ -1,13 +1,20 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "ExoNexus"
+[tool.poetry]
+name = "exonexus"
 version = "0.1.0"
-description = "ExoNexus LQCD analysis framework"
-authors = [{name="gdbrad"}]
-requires-python = ">=3.9"
+description = "ExoNexus Lattice QCD Analysis Pipeline"
+authors = ["Grant g.bradley@fz-juelich.de"]
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "*"
+scipy = "*"
+h5py = "*"
+matplotlib = "*"
+pyyaml = "*"
+gvar = "*"
+lsqfit = "*"
+jupyter = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
