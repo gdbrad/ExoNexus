@@ -96,7 +96,7 @@ def main():
                         print(f"[ERROR] {dataset_name}: {e}")
 
     print(f"[DONE] cfg {args.cfg_id:04d} complete in {corr_dir}")
-    print(f"[INFO] Logs in {log_dir}, correlators in {corr_dir}")
+    print(f"[INFO] Correlators successfully saved in {corr_dir}")
 
 
 if __name__ == "__main__":
