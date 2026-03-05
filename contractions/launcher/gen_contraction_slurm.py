@@ -10,17 +10,18 @@ def chunk_list(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-def make_run_dir(ensemble_short: str) -> Path:
+def make_run_dir(base_path: str) -> Path:
     """Create a timestamped run directory with attempt suffix to avoid overwriting."""
-    base = Path("/p/project1/exflash/contractions-tmp")
+    base = Path(base_path)
+    base.mkdir(parents=True, exist_ok=True)
+    
     date_str = datetime.now().strftime("%Y%m%d")
-    ens_dir = base / ensemble_short
-    ens_dir.mkdir(parents=True, exist_ok=True)
-
-    run_dir = ens_dir / f"run-{date_str}"
     attempt = 1
-    while run_dir.exists():
-        run_dir = ens_dir / f"run-{date_str}_{attempt}"
+    
+    while True:
+        run_dir = base / f"run-{date_str}_{attempt}"
+        if not run_dir.exists():
+            break
         attempt += 1
 
     run_dir.mkdir()
@@ -49,6 +50,13 @@ def generate_batch_scripts(yaml_file: str, chunk_size: int = 12):
     slurm = ensemble_cfg["slurm"]
     cfgs_cfg = ensemble_cfg["configs"]
     driver_path = ensemble_cfg["paths"]["driver_path"]
+    base_path = ensemble_cfg["paths"]["base_path"]
+
+    # Create the run directory using the YAML base_path
+    run_dir = make_run_dir(base_path)
+    corr_dir = run_dir / "correlators"
+    log_dir = run_dir / "logs"
+    script_dir = run_dir / "scripts"
 
     # Build list of configuration IDs
     if "range" in cfgs_cfg and cfgs_cfg["range"] is not None:
@@ -62,12 +70,6 @@ def generate_batch_scripts(yaml_file: str, chunk_size: int = 12):
 
     exclude = set(cfgs_cfg.get("exclude", []))
     cfg_ids = [c for c in cfg_ids if c not in exclude]
-
-    # Create run directory
-    run_dir = make_run_dir(ensemble_short)
-    corr_dir = run_dir / "correlators"
-    log_dir = run_dir / "logs"
-    script_dir = run_dir / "scripts"
 
     # Format SLURM time
     time_val = slurm.get("time_minutes", 60)

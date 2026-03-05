@@ -7,36 +7,11 @@ from distillation_data import DistillationData
 from single_meson_corr import SingleMesonCorrelator
 from meson_factory import MesonFactory
 
-
-def make_run_dir(base_dir: Path, ensemble_short: str, mode: str = "contractions") -> Path:
-    """
-    Create a timestamped run directory:
-    /base_dir/ensemble_short/mode/run-YYYYMMDD[_n]
-    Avoid overwriting by appending a numeric suffix if needed.
-    """
-    base_run_dir = base_dir / ensemble_short / mode
-    base_run_dir.mkdir(parents=True, exist_ok=True)
-
-    date_str = datetime.now().strftime("%Y%m%d")
-    run_dir = base_run_dir / f"run-{date_str}"
-    n = 1
-    while run_dir.exists():
-        run_dir = base_run_dir / f"run-{date_str}_{n}"
-        n += 1
-
-    # Create final run dir and subdirectories
-    run_dir.mkdir()
-    (run_dir / "correlators").mkdir()
-    (run_dir / "logs").mkdir()
-    (run_dir / "scripts").mkdir()
-
-    return run_dir
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--yaml_file", required=True, help="Path to ensemble YAML file")
     parser.add_argument("--cfg_id", type=int, required=True, help="Configuration ID")
+    parser.add_argument("--outdir", type=str, required=True, help="Output directory for correlator HDF5 files")
     args = parser.parse_args()
 
     # Load YAML
@@ -62,10 +37,9 @@ def main():
     proc = DistillationData(ensemble_short, args.yaml_file, args.cfg_id)
     proc.load_single_meson()
 
-    # Create run directory structure
-    run_dir = make_run_dir(base_path, ensemble_short, mode="contractions")
-    log_dir = run_dir / "logs"
-    corr_dir = run_dir / "correlators"
+    # Use the output directory provided by the launcher
+    corr_dir = Path(args.outdir)
+    corr_dir.mkdir(parents=True, exist_ok=True)
 
     # HDF5 output path
     outfile = corr_dir / f"{ensemble_short}_cfg{args.cfg_id:04d}.h5"
@@ -121,7 +95,7 @@ def main():
                     except Exception as e:
                         print(f"[ERROR] {dataset_name}: {e}")
 
-    print(f"[DONE] cfg {args.cfg_id:04d} complete in {run_dir}")
+    print(f"[DONE] cfg {args.cfg_id:04d} complete in {corr_dir}")
     print(f"[INFO] Logs in {log_dir}, correlators in {corr_dir}")
 
 
