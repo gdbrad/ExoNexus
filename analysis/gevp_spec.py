@@ -27,84 +27,67 @@ def jack_to_gvar(Cjk):
         return gv.gvar(mean, np.sqrt(cov))
     return gv.gvar(mean, cov)
 
-def effective_mass(C):
-    """Calculate the simple effective mass: ln( C(t) / C(t+1) )."""
-    return gv.log(C[:-1] / C[1:])
-
-def solve_gevp_jack(Cjk, t0, tol_rel=1e-6):
+def solve_gevp_jack(Cjk, t0, td=None):
     """
-    Solve the Generalized Eigenvalue Problem (GEVP) on Jackknife blocks.
-    Uses the ensemble mean of C(t0) to define the metric and applies a 
-    singular value cutoff (tol_rel) to project out noisy directions.
-    
-    Cjk shape: (Ncfg, Lt, N, N)
-    Returns lam: (Ncfg, Lt, N_kept) principal correlators.
+    Fixed-Basis Variational GEVP (Robust Two-Step Method).
+    Safely projects out noisy/negative eigenvectors in C(t0) before solving,
+    strictly maintaining the safe subspace dimension N_kept.
     """
     Ncfg, Lt, N, _ = Cjk.shape
     
-    # 1. Construct metric from the ensemble average at t0
-    C0 = np.mean(Cjk[:, t0, :, :], axis=0)
-    C0 = 0.5 * (C0 + C0.conj().T)  # Ensure hermiticity
-    evals, evecs = la.eigh(C0)
-    
-    # 2. Project onto active non-noisy subspace
-    tol = tol_rel * np.max(evals)
-    keep = evals > tol
-    if not np.any(keep):
-        raise RuntimeError("All C(t0) eigenvalues are below tolerance, matrix is too noisy.")
+    if td is None:
+        td = t0 + 1 
         
-    evals = evals[keep]
-    evecs = evecs[:, keep]
-    N_kept = len(evals)
-    print(f"GEVP: keeping {N_kept} / {N} modes at t0={t0}.")
+    # 1. Ensemble average to find stable eigenvectors
+    C_mean = np.mean(Cjk, axis=0)
     
-    # Construct projector V mapping to the safe N_kept subspace
-    V = evecs @ np.diag(evals**-0.5)
-
-    # 3. Solve GEVP block-by-block in the reduced subspace
+    C0 = 0.5 * (C_mean[t0] + C_mean[t0].conj().T)
+    Cd = 0.5 * (C_mean[td] + C_mean[td].conj().T)
+    
+    # 2. Diagonalize C0 first to find the positive-definite subspace
+    evals0, evecs0 = la.eigh(C0)
+    
+    # Drop zero or negative eigenvalues caused by noise/linear dependence
+    tol = 1e-8 * np.max(evals0)
+    keep = evals0 > tol
+    if not np.any(keep):
+        raise RuntimeError(f"All C(t0) eigenvalues are <= 0. Matrix is totally noisy at t0={t0}.")
+        
+    evals0 = evals0[keep]
+    evecs0 = evecs0[:, keep]
+    N_kept = len(evals0)
+    
+    # Form the projection matrix W (Maps N -> N_kept)
+    W = evecs0 @ np.diag(evals0**-0.5)
+    
+    # 3. Form standard eigenvalue problem STRICTLY in the N_kept subspace
+    M = W.conj().T @ Cd @ W
+    M = 0.5 * (M + M.conj().T) # Re-enforce hermiticity
+    
+    evals_d, U = la.eigh(M)
+    
+    # Map back to generalized eigenvectors: v = W * U  (shape: N x N_kept)
+    vecs = W @ U
+    
+    # Sort by largest eigenvalue (slowest decay = ground state)
+    idx = np.argsort(evals_d)[::-1]
+    vecs_sorted = vecs[:, idx]
+    
+    # Normalize to strictly equal 1 at t0
+    for i in range(N_kept):
+        v = vecs_sorted[:, i]
+        norm = np.einsum('i,ij,j->', v.conj(), C0, v).real
+        if norm > 0:
+            vecs_sorted[:, i] = v / np.sqrt(norm)
+    
+    # 4. Project the matrix at all times on all jackknife bins
     lam = np.zeros((Ncfg, Lt, N_kept))
     
     for k in range(Ncfg):
-        Cb = Cjk[k]
         for t in range(Lt):
-            Ct = 0.5 * (Cb[t] + Cb[t].conj().T)
-            
-            # Project Ct into the active space: V^dagger Ct V 
-            M = V.conj().T @ Ct @ V
-            w, _ = la.eigh(M)
-            
-            # Sort descending (largest eigenvalue == ground state principal)
-            w_sorted = np.sort(w)[::-1].real
-            lam[k, t, :len(w_sorted)] = w_sorted
+            Ct = 0.5 * (Cjk[k, t] + Cjk[k, t].conj().T)
+            # Decorrelate / diagonalize
+            C_rotated = vecs_sorted.conj().T @ Ct @ vecs_sorted
+            lam[k, t, :] = np.diag(C_rotated).real
 
     return lam
-
-def solve_gevp_bootstrap(Cboot, t0):
-    """
-    Standard GEVP solver for bootstrap blocks using Cholesky decomposition.
-    Cboot shape: (Nboot, Lt, N, N)
-    """
-    Nboot, Lt, N, _ = Cboot.shape
-    lam_boot = np.zeros((Nboot, Lt, N))
-
-    for b in range(Nboot):
-        Cb = Cboot[b]
-        C0 = Cb[t0]
-        C0 = 0.5 * (C0 + C0.conj().T)
-        
-        try:
-            L = la.cholesky(C0, lower=True)
-            Linv = la.inv(L)
-        except la.LinAlgError:
-            # Fallback for poorly conditioned matrices
-            C0 += 1e-8 * np.eye(N)
-            L = la.cholesky(C0, lower=True)
-            Linv = la.inv(L)
-
-        for t in range(Lt):
-            Ct = 0.5 * (Cb[t] + Cb[t].conj().T)
-            M = Linv @ Ct @ Linv.T
-            w, _ = la.eigh(M)
-            lam_boot[b, t] = np.sort(w)[::-1].real
-            
-    return lam_boot

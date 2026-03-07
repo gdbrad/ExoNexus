@@ -55,17 +55,17 @@ class MesonOperator:
 
     @property
     def base_gamma(self):
-        gname, _ = self.ins.split("_")
+        gname, _ = self.ins.rsplit("_", 1)
         return gamma_insertion_dict[gname]
 
     @property
     def gamma_i(self) -> bool:
-        gname, _ = self.ins.split("_")
+        gname, _ = self.ins.rsplit("_", 1)
         return gname in {"rho", "a1"}
 
     @property
     def derivative(self):
-        _, d = self.ins.split("_")
+        _, d = self.ins.rsplit("_", 1)
         return d if d != "none" else None
 
 

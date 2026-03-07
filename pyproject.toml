@@ -14,6 +14,8 @@ pyyaml = "*"
 gvar = "*"
 lsqfit = "*"
 jupyter = "*"
+tqdm = "^4.67.3"
+multiprocess = "^0.70.19"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
