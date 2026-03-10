@@ -47,27 +47,28 @@ def scan_fit_windows(lam0, tmin_list, tmax, prior, fcn):
     return results
 
 def two_exp(t, p, t0):
-    """Standard two-state decaying exponential implicitly anchored to t0."""
+    """Standard two-state decaying exponential"""
     E0 = p["E0"]
     E1 = p["E0"] + p["dE1"]  
-    # Using (t - t0) cleanly anchors the amplitudes A0 and A1 to O(1) for priors
+    # Using (t - t0) anchors the amplitudes A0 and A1 to O(1) for priors
     return p["A0"] * gv.exp(-E0 * (t - t0)) + p["A1"] * gv.exp(-E1 * (t - t0))
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--specfile", required=True)
-    parser.add_argument("--t0", type=int, default=10)
+    parser.add_argument("--t0", type=int, default=7)
     parser.add_argument("--tmin", type=int, default=4)
     parser.add_argument("--tmax", type=int, default=24)
     args = parser.parse_args()
 
-    # Define lattice scale for beta=3.4, 32^3x64 ensemble
-    # (Update this a^-1 explicitly based on your specific ensemble standard)
+    # lattice scale for beta=3.4, 32^3x64 ensemble
+    # (Update this a^-1 explicitly based on your specific ensemble)
     a_inv_MeV = 2000.0  # Placeholder: ~0.1 fm
 
     base_dir = os.path.dirname(os.path.abspath(args.specfile))
     plots_dir = os.path.join(base_dir, "plots")
     fits_dir = os.path.join(base_dir, "fits")
+
     os.makedirs(plots_dir, exist_ok=True)
     os.makedirs(fits_dir, exist_ok=True)
 
@@ -75,7 +76,11 @@ def main():
         channels = list(f.keys())
         for channel in channels:
             for flavor in f[channel]:
-                print(f"\n====================================")
+                channel_plots_dir = os.path.join(plots_dir, channel, flavor)
+                channel_fits_dir = os.path.join(fits_dir, channel, flavor)
+                os.makedirs(channel_plots_dir, exist_ok=True)
+                os.makedirs(channel_fits_dir, exist_ok=True)
+
                 print(f"Channel: {channel} | Flavor: {flavor}")
                 
                 try: 
@@ -156,16 +161,48 @@ def main():
                     lam_jk_0 = opt_corrs_raw[(part_name, (0, 0))]
                     lam0 = gevp_spec.jack_to_gvar(lam_jk_0)
 
-                    # 2. Plot Principals
-                    plt.figure()
+                    # 1b. Plot raw diagonal correlators C_ii(t)
+                    colors = plt.cm.tab10.colors
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    for i, op in enumerate(ops):
+                        C_ii = gevp_spec.jack_to_gvar(Cjk[:, :, i, i])
+                        t_range = np.arange(Lt)
+                        valid_i = np.array([not np.isnan(gv.mean(C_ii[t])) and gv.mean(C_ii[t]) > 0
+                                            for t in range(Lt)])
+                        ax.errorbar(t_range[valid_i], gv.mean(C_ii[valid_i]), yerr=gv.sdev(C_ii[valid_i]),
+                                    fmt='o', markersize=4, capsize=3, color=colors[i % 10],
+                                    label=op)
+                    ax.axvline(args.t0, color='gray', linestyle='--', lw=1, label=f"$t_0={args.t0}$")
+                    ax.set_yscale("log")
+                    ax.set_xlim(0, Lt // 2)
+                    ax.set_xlabel("$t/a$")
+                    ax.set_ylabel("$C_{ii}(t)$")
+                    ax.legend(fontsize=7, loc="upper right")
+                    ax.set_title(f"{channel}  {flavor}  ({group_name})  —  diagonal correlators")
+                    fig.tight_layout()
+                    fig.savefig(os.path.join(channel_plots_dir, f"{group_name}_diag_corr.png"), dpi=150)
+                    plt.close(fig)
+
+                    # 2. Plot Principals (zoomed to fit window)
+                    colors = plt.cm.tab10.colors
+                    fig, ax = plt.subplots(figsize=(8, 5))
                     for n in range(N_kept):
                         lam_gv = gevp_spec.jack_to_gvar(opt_corrs_raw[(part_name, (n, n))])
-                        plt.errorbar(range(Lt), gv.mean(lam_gv), yerr=gv.sdev(lam_gv), fmt='o', label=f"state {n}")
-                    plt.yscale("log")
-                    plt.title(f"{channel} {flavor} ({group_name}) principal correlators")
-                    plt.legend()
-                    plt.savefig(os.path.join(plots_dir, f"{channel}_{flavor}_{group_name}_principal.png"))
-                    plt.close()
+                        t_range = np.arange(Lt)
+                        valid_n = np.array([not np.isnan(gv.mean(lam_gv[t])) and gv.mean(lam_gv[t]) > 0
+                                            for t in range(Lt)])
+                        ax.errorbar(t_range[valid_n], gv.mean(lam_gv[valid_n]), yerr=gv.sdev(lam_gv[valid_n]),
+                                    fmt='o', markersize=4, capsize=3, color=colors[n % 10], label=f"state {n}")
+                    ax.axvline(args.t0, color='gray', linestyle='--', lw=1, label=f"$t_0={args.t0}$")
+                    ax.set_yscale("log")
+                    ax.set_xlim(max(0, args.t0 - 2), min(Lt, args.tmax + 4))
+                    ax.set_xlabel("$t/a$")
+                    ax.set_ylabel("$\\lambda(t, t_0)$")
+                    ax.legend(fontsize=8)
+                    ax.set_title(f"{channel}  {flavor}  ({group_name})  —  principal correlators")
+                    fig.tight_layout()
+                    fig.savefig(os.path.join(channel_plots_dir, f"{group_name}_principal.png"), dpi=150)
+                    plt.close(fig)
                     
                     # 3. Fit Ground State 
                     prior = gv.BufferDict()
@@ -197,66 +234,108 @@ def main():
                     print(f"Ground state E0 = {E_lat} lat")
                     print(f"Physical Mass   = {E_phys} MeV")
                     
-                    fit_filename = os.path.join(fits_dir, f"{channel}_{flavor}_{group_name}_fit.txt")
+                    fit_filename = os.path.join(channel_fits_dir, f"{group_name}_fit.txt")
                     with open(fit_filename, 'w') as fit_file:
                         fit_file.write(str(fit.format(maxline=True)) + "\n\n")
                         fit_file.write(f"Ground state E0 = {E_lat}\n")
                         fit_file.write(f"Physical Mass = {E_phys} MeV\n")
 
-                    # 4. Predict Effective Mass Fit Curve
-                    t_fit = np.arange(args.tmin, args.tmax)
-                    y_fit = two_exp(t_fit, fit.p, args.t0)
-                    meff_fit_curve = log_m_eff(y_fit)
-                    t_meff_fit = t_fit[:-1] + 0.5  # shift halfway between points
+                    # 4. Smooth continuous effective mass from two-exponential fit
+                    t_dense = np.linspace(args.tmin - 0.5, args.tmax - 0.5, 300)
+                    p_fit = fit.p
+                    E0_p = p_fit["E0"]
+                    E1_p = p_fit["E0"] + p_fit["dE1"]
+                    A0_p = p_fit["A0"]
+                    A1_p = p_fit["A1"]
+                    dt_arr = t_dense - args.t0
+                    exp0 = np.array([gv.exp(-E0_p * float(ti)) for ti in dt_arr])
+                    exp1 = np.array([gv.exp(-E1_p * float(ti)) for ti in dt_arr])
+                    meff_dense = (A0_p * E0_p * exp0 + A1_p * E1_p * exp1) / (A0_p * exp0 + A1_p * exp1)
 
                     # 5. Calculate Data Effective Mass
                     m_eff = log_m_eff(lam0)
                     t_eff = np.arange(Lt - 1) + 0.5
 
-                    # 6. Plot M_eff + Exponential Curve Fit Band (Zoomed In)
-                    plt.figure()
-                    valid = [not np.isnan(gv.mean(m)) for m in m_eff]
-                    plt.errorbar(t_eff[valid], gv.mean(m_eff[valid]), yerr=gv.sdev(m_eff[valid]), fmt='o', label="data m_eff")
-                    
-                    # Plot the curved approaching fit band
-                    plt.plot(t_meff_fit, gv.mean(meff_fit_curve), label="fit curve", color='red')
-                    plt.fill_between(t_meff_fit, 
-                                     gv.mean(meff_fit_curve) - gv.sdev(meff_fit_curve), 
-                                     gv.mean(meff_fit_curve) + gv.sdev(meff_fit_curve), 
-                                     color='red', alpha=0.3)
-                    
-                    # Plot horizontal asymptotic limit
-                    plt.axhline(gv.mean(E_lat), linestyle="--", color='black', label="E0 asymptote")
-                    plt.fill_between([0, Lt], gv.mean(E_lat) - gv.sdev(E_lat), gv.mean(E_lat) + gv.sdev(E_lat), color='black', alpha=0.1)
-                    
-                    # ZOOM IN dynamically to the fit window data
-                    window_data = [m_eff[t] for t in range(args.tmin, args.tmax-1) if t < len(m_eff) and not np.isnan(gv.mean(m_eff[t]))]
-                    if len(window_data) > 0:
-                        y_min = np.min([gv.mean(m) - gv.sdev(m) for m in window_data])
-                        y_max = np.max([gv.mean(m) + gv.sdev(m) for m in window_data])
-                        y_pad = (y_max - y_min) * 0.5
-                        plt.ylim(max(0, y_min - y_pad), y_max + y_pad)
-                    
-                    plt.xlim(max(0, args.tmin - 2), min(Lt, args.tmax + 4))
-                    
-                    plt.legend()
-                    plt.title(f"{channel} {flavor} ({group_name})\nM_eff (E = {E_phys.mean:.1f} MeV)")
-                    plt.savefig(os.path.join(plots_dir, f"{channel}_{flavor}_{group_name}_meff_fit.png"))
-                    plt.close()
+                    # 6. Plot M_eff + smooth fit overlay (zoomed to fit window)
+                    xlim_lo = max(0.0, args.tmin - 2.0)
+                    xlim_hi = min(float(Lt), args.tmax + 2.0)
 
-                    # 7. Stability Scans (using simple exp function)
+                    window_data = [m_eff[t] for t in range(args.tmin, args.tmax - 1)
+                                   if t < len(m_eff) and not np.isnan(gv.mean(m_eff[t]))]
+                    if len(window_data) > 0:
+                        yw = np.array([gv.mean(m) for m in window_data])
+                        ye = np.array([gv.sdev(m) for m in window_data])
+                        y_pad = (np.max(yw + ye) - np.min(yw - ye)) * 0.3
+                        ylim_lo = max(0.0, np.min(yw - ye) - y_pad)
+                        ylim_hi = 3.0
+                        #ylim_hi = np.max(yw + ye) + y_pad
+                    else:
+                        ylim_lo, ylim_hi = None, None
+
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    valid = np.array([not np.isnan(gv.mean(m)) for m in m_eff])
+                    ax.errorbar(t_eff[valid], gv.mean(m_eff[valid]), yerr=gv.sdev(m_eff[valid]),
+                                fmt='o', color='steelblue', markersize=4, capsize=3,
+                                label="$m_\\mathrm{eff}$")
+
+                    meff_dn_mean = gv.mean(meff_dense)
+                    meff_dn_sdev = gv.sdev(meff_dense)
+                    ax.plot(t_dense, meff_dn_mean, color='red', lw=1.5, label="fit")
+                    ax.fill_between(t_dense, meff_dn_mean - meff_dn_sdev, meff_dn_mean + meff_dn_sdev,
+                                    color='red', alpha=0.25)
+
+                    ax.axhline(gv.mean(E_lat), linestyle="--", color='black', lw=1,
+                               label=f"$E_0 = {E_lat}$")
+                    ax.fill_between([xlim_lo, xlim_hi],
+                                    gv.mean(E_lat) - gv.sdev(E_lat),
+                                    gv.mean(E_lat) + gv.sdev(E_lat),
+                                    color='black', alpha=0.1)
+
+                    ax.axvline(args.tmin - 0.5, color='gray', linestyle=':', lw=1)
+                    ax.axvline(args.tmax - 0.5, color='gray', linestyle=':', lw=1, label="fit window")
+
+                    if ylim_lo is not None:
+                        ax.set_ylim(ylim_lo, ylim_hi)
+                    ax.set_xlim(xlim_lo, xlim_hi)
+                    ax.set_xlabel("$t/a$")
+                    ax.set_ylabel("$m_\\mathrm{eff}(t)$")
+                    ax.legend(fontsize=8, loc="upper right")
+                    ax.set_title(f"{channel}  {flavor}  ({group_name})  —  $aE_0 = {E_lat}$")
+                    fig.tight_layout()
+                    fig.savefig(os.path.join(channel_plots_dir, f"{group_name}_meff_fit.png"), dpi=150)
+                    plt.close(fig)
+
+                    # 7. Stability Scans — chi2/dof coloured scatter
                     tmin_list = range(3, 10)
                     results = scan_fit_windows(lam0, tmin_list, args.tmax, prior, lambda t, p: two_exp(t, p, args.t0))
                     if len(results) > 0:
-                        plt.figure()
-                        plt.errorbar([r["tmin"] for r in results], 
-                                     [gv.mean(r["E"]) for r in results], 
-                                     yerr=[gv.sdev(r["E"]) for r in results], fmt='o')
-                        plt.xlabel("tmin")
-                        plt.ylabel("E0")
-                        plt.title(f"{channel} {flavor} ({group_name}) stability")
-                        plt.savefig(os.path.join(plots_dir, f"{channel}_{flavor}_{group_name}_stability.png"))
-                        plt.close()
+                        tmins  = [r["tmin"] for r in results]
+                        E_means = [gv.mean(r["E"]) for r in results]
+                        E_sdevs = [gv.sdev(r["E"]) for r in results]
+                        chi2s  = [r["chi2dof"] for r in results]
+
+                        fig, ax = plt.subplots(figsize=(6, 4))
+                        ax.errorbar(tmins, E_means, yerr=E_sdevs,
+                                    fmt='none', color='gray', capsize=3, zorder=2)
+                        sc = ax.scatter(tmins, E_means, c=chi2s, cmap='RdYlGn_r',
+                                        vmin=0, vmax=2, zorder=3, s=50)
+                        plt.colorbar(sc, ax=ax, label="$\\chi^2$/dof")
+
+                        ax.axvline(args.tmin, color='steelblue', linestyle='--', lw=1,
+                                   label=f"selected $t_{{\\min}}={args.tmin}$")
+                        ax.axhline(gv.mean(E_lat), color='black', linestyle='--', lw=1)
+                        ax.fill_between([min(tmins) - 0.5, max(tmins) + 0.5],
+                                        gv.mean(E_lat) - gv.sdev(E_lat),
+                                        gv.mean(E_lat) + gv.sdev(E_lat),
+                                        color='black', alpha=0.12, label="$E_0$ (selected fit)")
+
+                        ax.set_xlabel("$t_{\\min}$")
+                        ax.set_ylabel("$E_0$")
+                        ax.legend(fontsize=8)
+                        ax.set_title(f"{channel}  {flavor}  ({group_name})  —  stability")
+                        fig.tight_layout()
+                        fig.savefig(os.path.join(channel_plots_dir, f"{group_name}_stability.png"), dpi=150)
+                        plt.close(fig)
 
 if __name__ == "__main__":
     main()

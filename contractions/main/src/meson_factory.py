@@ -14,20 +14,18 @@ from typing import Tuple, List
 from gamma import gamma
 import numpy as np
 
-# ---------------------------------------------------------
-# Gamma insertion dictionary
-# ---------------------------------------------------------
-
 I = np.identity(4)
-
+# see table II https://arxiv.org/pdf/1004.4930
 gamma_insertion_dict = {
     "a0": I,                      # 0+
     "pi": gamma[5],# 0-
-    "pi_2": gamma[5]@gamma[4],              
-    "rho": I,                     # 1- (handled via gamma_i flag)
-    "a1": gamma[5],               # 1+ (gamma_i @ gamma5)
+    "pi2": gamma[5]@gamma[4], 
+    "b0": gamma[4],            
+    "rho": I, # @gi                     # 1- (handled via gamma_i flag)
+    "rho2": gamma[4],#@gi
+    "a1": gamma[5],#@gi               # 1+ (gamma_i @ gamma5)
+    "b1": I #gi@gj
 }
-
 
 # ---------------------------------------------------------
 # Bare single-meson operator
@@ -104,15 +102,12 @@ class MesonFactory:
     ) -> List[MesonOperator]:
 
         mlist = [meson] if isinstance(meson, str) else meson
-
         self.ops = []
 
         for m in mlist:
             for ins in insertions:
-
                 full = f"{m}_p{momentum}_{ins}_{irrep}"
                 short = f"{m}_{ins}"
-
                 op = MesonOperator(
                     meson=m,
                     mom=momentum,
@@ -121,7 +116,6 @@ class MesonFactory:
                     name=full,
                     short=short,
                 )
-
                 self.ops.append(op)
 
         print(f"[MesonFactory] Generated {len(self.ops)} operators")
